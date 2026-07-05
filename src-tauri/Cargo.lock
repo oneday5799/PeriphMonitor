@@ -3,6 +3,25 @@
 version = 4
 
 [[package]]
+name = "PeriphMonitor"
+version = "1.0.0"
+dependencies = [
+ "futures",
+ "regex",
+ "serde",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-window-state",
+ "tokio",
+ "toml 0.8.2",
+ "windows 0.58.0",
+ "windows-sys 0.52.0",
+ "wmi",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2398,25 +2417,6 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
-
-[[package]]
-name = "periph-monitor"
-version = "1.0.0"
-dependencies = [
- "futures",
- "regex",
- "serde",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-single-instance",
- "tauri-plugin-window-state",
- "tokio",
- "toml 0.8.2",
- "windows 0.58.0",
- "windows-sys 0.52.0",
- "wmi",
-]
 
 [[package]]
 name = "phf"

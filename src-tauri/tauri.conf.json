@@ -3,6 +3,7 @@
   "productName": "PeriphMonitor",
   "version": "1.0.0",
   "identifier": "com.periph.monitor",
+  "mainBinaryName": "PeriphMonitor",
   "build": {
     "frontendDist": "dist",
     "beforeDevCommand": "",

@@ -117,7 +117,7 @@ fn main() {
                             let _ = auto_i.set_text(text);
                             let _ = app.emit("auto-start-changed", new_val);
                         }
-                        "exit" => { app.exit(0); }
+                        "exit" => { std::process::exit(0); }
                         _ => {}
                     }
                 })
@@ -299,9 +299,10 @@ fn open_settings(app: &tauri::AppHandle) {
         .title("设置 - 外设监控")
         .inner_size(600.0, 500.0)
         .min_inner_size(400.0, 300.0)
+        .background_color(tauri::utils::config::Color(243, 243, 243, 255))
         .visible(false)
         .build() {
-            // Let the window-state plugin restore position, then show
+            // Let window-state plugin restore position, then show
             std::thread::sleep(std::time::Duration::from_millis(100));
             let _ = win.show();
             let _ = win.set_focus();

@@ -1,5 +1,5 @@
 [package]
-name = "periph-monitor"
+name = "PeriphMonitor"
 version = "1.0.0"
 edition = "2021"
 
