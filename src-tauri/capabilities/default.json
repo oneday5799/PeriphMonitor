@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities",
+  "windows": ["*"],
+  "permissions": [
+    "core:default",
+    "window-state:default"
+  ]
+}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>设置 - 外设监控</title>
+  <link rel="stylesheet" href="styles/settings.css">
+</head>
+<body oncontextmenu="return false">
+  <div class="settings-container" id="app">
+    <h1 class="page-title">设置</h1>
+
+    <!-- Auto start -->
+    <div class="setting-row">
+      <span class="setting-label">开机自启动</span>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-autostart">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Device filter -->
+    <div class="setting-row">
+      <span class="setting-label">设备过滤</span>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-filter">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="filter-regex-wrap" id="filter-regex-wrap">
+      <label class="filter-label">过滤正则表达式</label>
+      <textarea id="filter-regex" class="filter-textarea" rows="4" spellcheck="false"></textarea>
+      <div class="filter-hint">匹配设备名称的正则表达式，不区分大小写。匹配到的设备将被隐藏。</div>
+    </div>
+
+    <div class="separator"></div>
+
+    <!-- Device groups -->
+    <div class="device-groups" id="device-groups"></div>
+  </div>
+
+  <script>
+    document.addEventListener("contextmenu", e => e.preventDefault());
+  </script>
+  <script src="scripts/settings.js"></script>
+</body>
+</html>

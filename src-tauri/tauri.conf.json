@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nickelpack/tauri-v2-docs/main/tauri.conf.schema.json",
+  "productName": "PeriphMonitor",
+  "version": "1.0.0",
+  "identifier": "com.periph.monitor",
+  "build": {
+    "frontendDist": "dist",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": true,
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

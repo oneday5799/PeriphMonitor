@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: #f3f3f3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      user-select: none;
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      background: linear-gradient(180deg, #FF8033, #FF7500);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon svg {
+      width: 36px;
+      height: 36px;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 4px;
+    }
+    .version {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 16px;
+    }
+    .desc {
+      font-size: 14px;
+      color: #444;
+      line-height: 1.6;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .compat {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 24px;
+    }
+    .close-btn {
+      padding: 8px 32px;
+      border: 1px solid #d0d0d0;
+      border-radius: 6px;
+      background: #fff;
+      color: #333;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .close-btn:hover { background: #e8e8e8; }
+  </style>
+</head>
+<body oncontextmenu="return false">
+  <div class="icon">
+    <svg viewBox="0 0 1024 1024" fill="#fff">
+      <path d="M144 384a368 368 0 1 1 736 0v256a368 368 0 0 1-736 0V384zM512 112A272 272 0 0 0 240 384v256a272 272 0 0 0 544 0V384A272 272 0 0 0 512 112z"/>
+      <path d="M512 192a48 48 0 0 1 48 48v160a48 48 0 0 1-96 0v-160A48 48 0 0 1 512 192z"/>
+    </svg>
+  </div>
+  <h1>外设监控</h1>
+  <div class="version">v1.0.0</div>
+  <div class="desc">
+    监控并显示所有连接外设的信息。<br>
+    支持音频、USB、蓝牙、电池和显示器设备。
+  </div>
+  <div class="compat">兼容 Windows 10/11</div>
+  <button class="close-btn" id="close">确定</button>
+
+  <script>
+    document.addEventListener("contextmenu", e => e.preventDefault());
+    const { invoke } = window.__TAURI__.core;
+    document.getElementById("close").addEventListener("click", async () => {
+      await invoke("close_window", { name: "about" });
+    });
+    document.addEventListener("keydown", async (e) => {
+      if (e.key === "Escape") {
+        await invoke("close_window", { name: "about" });
+      }
+    });
+  </script>
+</body>
+</html>

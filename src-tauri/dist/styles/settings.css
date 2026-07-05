@@ -1,0 +1,258 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: #f3f3f3;
+  overflow-y: scroll;
+  user-select: none;
+}
+
+/* Windows 11 native scrollbar */
+body::-webkit-scrollbar {
+  width: 10px;
+}
+
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border: 3.5px solid transparent;
+  border-radius: 5px;
+  background-clip: padding-box;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
+  background-clip: padding-box;
+  border-width: 2px;
+}
+
+.settings-container {
+  padding: 10px 24px 24px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a1a;
+  padding: 10px 0 16px;
+}
+
+/* Setting row */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+}
+
+.setting-label {
+  font-size: 15px;
+  color: #1a1a1a;
+}
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #999;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+.slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.toggle input:checked + .slider {
+  background: #0078d7;
+}
+
+.toggle input:checked + .slider::before {
+  transform: translateX(20px);
+}
+
+/* Separator */
+.separator {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 6px 0;
+}
+
+/* Filter regex */
+.filter-regex-wrap {
+  padding: 8px 0 12px;
+}
+
+.filter-label {
+  font-size: 13px;
+  color: #666;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.filter-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 13px;
+  color: #1a1a1a;
+  background: #fff;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.filter-textarea:focus {
+  border-color: #0078d7;
+}
+
+.filter-hint {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* Device groups */
+.device-groups {
+  margin-top: 10px;
+}
+
+.group {
+  margin-bottom: 2px;
+}
+
+/* Windows 11 settings card */
+.group-card {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.group-header:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.group-toggle {
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.group-toggle input {
+  cursor: pointer;
+}
+
+.group-icon {
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.group-text {
+  flex: 1;
+  margin-left: 12px;
+}
+
+.group-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.group-subtitle {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.group-arrow {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.group-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+/* Expandable items */
+.group-items {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.group-items.show {
+  max-height: 1000px;
+}
+
+.device-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 10px 64px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.device-item-name {
+  font-size: 14px;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  margin-right: 12px;
+}
+
+.device-item-name.hidden {
+  color: #a0a0a0;
+}
