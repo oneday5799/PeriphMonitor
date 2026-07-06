@@ -57,3 +57,7 @@ cargo tauri dev
 ### 许可证
 
 [MIT](LICENSE)
+
+### 致谢
+
+- [BlueGauge](https://github.com/iKineticate/BlueGauge) — 蓝牙电量读取方案参考，windows_pnp 库来源
