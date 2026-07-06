@@ -60,11 +60,12 @@ fn try_insert(
     dt: DevType,
     status: &str,
     battery: Option<i32>,
+    dedup: bool,
     seen: &mut HashSet<String>,
     devices: &mut Vec<Device>,
 ) {
     let cn = core_name(name);
-    if !seen.insert(cn.clone()) {
+    if dedup && !seen.insert(cn.clone()) {
         if let Some(existing) = devices.iter_mut().find(|d| core_name(&d.name) == cn) {
             if name.len() < existing.name.len() {
                 existing.name = name.to_string();
@@ -86,6 +87,7 @@ pub fn query_devices() -> Vec<Device> {
     let mut seen = HashSet::new();
 
     let filter_enabled = config::with_config(|c| c.filter_enabled);
+    let dedup_enabled = config::with_config(|c| c.dedup_devices);
 
     let com = unsafe { wmi::COMLibrary::assume_initialized() };
 
@@ -138,7 +140,7 @@ pub fn query_devices() -> Vec<Device> {
             if n.is_empty() { continue; }
 
             let dt = classify_device(&n, &pnp, &u, &cap);
-            try_insert(&n, dt, s, None, &mut seen, &mut all);
+            try_insert(&n, dt, s, None, dedup_enabled, &mut seen, &mut all);
         }
     }
 
@@ -161,7 +163,7 @@ pub fn query_devices() -> Vec<Device> {
                     existing.battery = battery.map(|b| b as i32);
                 }
             } else {
-                try_insert(&name, dt, s, battery.map(|b| b as i32), &mut seen, &mut all);
+                try_insert(&name, dt, s, battery.map(|b| b as i32), dedup_enabled, &mut seen, &mut all);
             }
         }
     }
@@ -173,7 +175,7 @@ pub fn query_devices() -> Vec<Device> {
                 d.name.unwrap_or_default(),
                 d.status.unwrap_or_default(),
             );
-            if !n.is_empty() && seen.insert(core_name(&n)) {
+            if !n.is_empty() && (!dedup_enabled || seen.insert(core_name(&n))) {
                 all.push(Device {
                     name: n,
                     dt: DevType::Battery,
@@ -192,7 +194,7 @@ pub fn query_devices() -> Vec<Device> {
                 d.status.unwrap_or_default(),
             );
             if n.is_empty() || s != "OK" { continue; }
-            if seen.insert(core_name(&n)) {
+            if !dedup_enabled || seen.insert(core_name(&n)) {
                 all.push(Device {
                     name: n,
                     dt: DevType::Monitor,
@@ -247,14 +249,19 @@ fn core_name(n: &str) -> String {
     };
     for suffix in &[
         " Hands-Free AG",
+        " Hands-Free HF",
         " Hands-Free",
         " Handsfree",
+        " A2DP SNK",
+        " A2DP SRC",
         " Stereo",
         " LE",
         " Low Energy",
         " Audio",
         " HFP",
         " AG",
+        " SNK",
+        " SRC",
         " Avrcp 传输",
         " 音频网关服务",
     ] {

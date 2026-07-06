@@ -12,6 +12,7 @@ pub struct Config {
     pub device_groups: std::collections::HashMap<String, String>,
     pub filter_enabled: bool,
     pub filter_regex: String,
+    pub dedup_devices: bool,
 }
 
 impl Default for Config {
@@ -24,6 +25,7 @@ impl Default for Config {
             device_groups: std::collections::HashMap::new(),
             filter_enabled: true,
             filter_regex: Self::default_filter_regex(),
+            dedup_devices: true,
         }
     }
 }

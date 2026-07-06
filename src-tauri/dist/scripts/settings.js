@@ -43,6 +43,15 @@ async function init() {
       }, 500);
     });
 
+    // Dedup toggle
+    const dedupToggle = document.getElementById("toggle-dedup");
+    dedupToggle.checked = config.dedup_devices;
+    dedupToggle.addEventListener("change", async () => {
+      config.dedup_devices = dedupToggle.checked;
+      await invoke("update_config", { newConfig: config });
+      await loadDevicesAsync();
+    });
+
     loadDevicesAsync();
   } catch (e) {
     console.error("Failed to load settings:", e);
