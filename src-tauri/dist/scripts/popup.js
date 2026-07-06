@@ -73,7 +73,7 @@ function renderDevices() {
 
       const statusEl = document.createElement("div");
       statusEl.className = "device-status";
-      statusEl.textContent = dev.battery != null ? `电量: ${dev.battery}%` : dev.status;
+      statusEl.textContent = dev.battery != null ? `${dev.battery}%  ${dev.status}` : dev.status;
       card.appendChild(statusEl);
 
       card.addEventListener("contextmenu", (e) => {

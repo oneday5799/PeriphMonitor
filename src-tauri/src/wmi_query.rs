@@ -143,15 +143,26 @@ pub fn query_devices() -> Vec<Device> {
     }
 
     // Paired Bluetooth devices via Windows Runtime API
+    // This pass provides accurate ConnectionStatus, so override WMI-inferred statuses
+    let mut bt_names: HashSet<String> = HashSet::new();
     if let Ok(btc_devices) = find_paired_bluetooth_devices() {
-        for (name, connected) in btc_devices {
+        for (name, connected, battery) in btc_devices {
             if name.is_empty() { continue; }
             let dt = match classify_bluetooth(&name) {
                 Some(dt) => dt,
                 None => continue,
             };
             let s = if connected { "已连接" } else { "已配对" };
-            try_insert(&name, dt, s, None, &mut seen, &mut all);
+            let cn = core_name(&name);
+            bt_names.insert(cn.clone());
+            if let Some(existing) = all.iter_mut().find(|d| core_name(&d.name) == cn) {
+                existing.status = s.to_string();
+                if battery.is_some() {
+                    existing.battery = battery.map(|b| b as i32);
+                }
+            } else {
+                try_insert(&name, dt, s, battery.map(|b| b as i32), &mut seen, &mut all);
+            }
         }
     }
 
@@ -207,6 +218,13 @@ pub fn query_devices() -> Vec<Device> {
             if let Ok(re) = Regex::new(&format!("(?i)({})", filter_regex_str)) {
                 all.retain(|d| !re.is_match(&d.name));
             }
+        }
+    }
+
+    // Temporarily hide status for devices not detected by WinRT Bluetooth API
+    for d in &mut all {
+        if !bt_names.contains(&core_name(&d.name)) {
+            d.status.clear();
         }
     }
 
@@ -282,7 +300,7 @@ fn is_bt_peripheral(n: &str) -> bool {
     .any(|k| l.contains(k))
 }
 
-fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool)>, Box<dyn std::error::Error>> {
+fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>)>, Box<dyn std::error::Error>> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
 
     let mut result = Vec::new();
@@ -290,32 +308,62 @@ fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool)>, Box<dyn std::e
     let btc_selector = BluetoothDevice::GetDeviceSelectorFromPairingState(true)?;
     let btc_op = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector)?;
     let btc_devices_info = btc_op.get()?;
-    for device_info in btc_devices_info.into_iter() {
-        if let Ok(device_id) = device_info.Id() {
-            if let Ok(future) = BluetoothDevice::FromIdAsync(&device_id) {
-                if let Ok(device) = future.get() {
-                    let name = device.Name()?.to_string();
-                    let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
-                    result.push((name, connected));
+        for device_info in btc_devices_info.into_iter() {
+            if let Ok(device_id) = device_info.Id() {
+                if let Ok(future) = BluetoothDevice::FromIdAsync(&device_id) {
+                    if let Ok(device) = future.get() {
+                        let name = device.Name()?.to_string();
+                        let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
+                        let battery = read_btc_battery_from_device_id(&device_id.to_string());
+                        result.push((name, connected, battery));
+                    }
                 }
             }
         }
-    }
 
     let ble_selector = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true)?;
     let ble_op = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector)?;
     let ble_devices_info = ble_op.get()?;
-    for device_info in ble_devices_info.into_iter() {
-        if let Ok(device_id) = device_info.Id() {
-            if let Ok(future) = BluetoothLEDevice::FromIdAsync(&device_id) {
-                if let Ok(device) = future.get() {
-                    let name = device.Name()?.to_string();
-                    let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
-                    result.push((name, connected));
+        for device_info in ble_devices_info.into_iter() {
+            if let Ok(device_id) = device_info.Id() {
+                if let Ok(future) = BluetoothLEDevice::FromIdAsync(&device_id) {
+                    if let Ok(device) = future.get() {
+                        let name = device.Name()?.to_string();
+                        let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
+                        let battery = read_ble_battery(&device);
+                        result.push((name, connected, battery));
+                    }
                 }
             }
         }
-    }
 
     Ok(result)
+}
+
+fn read_ble_battery(ble_device: &BluetoothLEDevice) -> Option<u8> {
+    use windows::Devices::Bluetooth::GenericAttributeProfile::{
+        GattCharacteristicUuids, GattServiceUuids,
+    };
+    use windows::Storage::Streams::DataReader;
+
+    let _name = ble_device.Name().ok().map(|n| n.to_string()).unwrap_or_default();
+    let battery_service = GattServiceUuids::Battery().ok()?;
+    let battery_level = GattCharacteristicUuids::BatteryLevel().ok()?;
+
+    let services = ble_device.GetGattServicesForUuidAsync(battery_service).ok()?.get().ok()?;
+    let service = services.Services().ok()?.into_iter().next()?;
+
+    let chars = service.GetCharacteristicsForUuidAsync(battery_level).ok()?.get().ok()?;
+    let char = chars.Characteristics().ok()?.into_iter().next()?;
+
+    let buffer = char.ReadValueAsync().ok()?.get().ok()?.Value().ok()?;
+    let reader = DataReader::FromBuffer(&buffer).ok()?;
+    let level = reader.ReadByte().ok()?;
+    Some(level)
+}
+
+fn read_btc_battery_from_device_id(_device_id: &str) -> Option<u8> {
+    // BTC battery via PnP requires complex device tree traversal (see BlueGauge's windows_pnp crate)
+    // Not implemented yet - BLE battery via GATT works for BLE devices
+    None
 }

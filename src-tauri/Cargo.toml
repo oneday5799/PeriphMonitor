@@ -24,8 +24,10 @@ windows-sys = { version = "0.52", features = [
 version = "0.58"
 features = [
     "Devices_Bluetooth",
+    "Devices_Bluetooth_GenericAttributeProfile",
     "Devices_Enumeration",
     "Foundation_Collections",
+    "Storage_Streams",
 ]
 
 [build-dependencies]
