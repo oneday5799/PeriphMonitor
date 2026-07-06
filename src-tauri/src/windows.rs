@@ -1,4 +1,12 @@
+use tauri::Manager;
+
 pub fn open_settings(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("settings") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+        return;
+    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Ok(win) = tauri::WebviewWindowBuilder::new(
@@ -20,6 +28,12 @@ pub fn open_settings(app: &tauri::AppHandle) {
 }
 
 pub fn open_about(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("about") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+        return;
+    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Ok(win) = tauri::WebviewWindowBuilder::new(
