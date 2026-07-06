@@ -14,7 +14,9 @@ tokio = { version = "1", features = ["rt"] }
 regex = "1"
 wmi = "0.14"
 futures = "0.3"
-windows-sys = { version = "0.52", features = [
+windows_pnp = { path = "../libs/windows_pnp" }
+windows_pnp_uuid = { path = "../libs/windows_pnp/libs/windows_pnp_uuid" }
+windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
     "Win32_System_Com",

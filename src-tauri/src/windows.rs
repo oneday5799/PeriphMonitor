@@ -69,7 +69,7 @@ pub fn set_rounded_corners(hwnd: isize) {
         const DWMWCP_ROUND: u32 = 2;
         let preference = DWMWCP_ROUND;
         windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute(
-            hwnd,
+            hwnd as *mut core::ffi::c_void,
             DWMWA_WINDOW_CORNER_PREFERENCE,
             &preference as *const _ as *const _,
             std::mem::size_of::<u32>() as u32,

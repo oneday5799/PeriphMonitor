@@ -308,10 +308,10 @@ fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>)>, Bo
     let btc_selector = BluetoothDevice::GetDeviceSelectorFromPairingState(true)?;
     let btc_op = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector)?;
     let btc_devices_info = btc_op.get()?;
-        for device_info in btc_devices_info.into_iter() {
-            if let Ok(device_id) = device_info.Id() {
-                if let Ok(future) = BluetoothDevice::FromIdAsync(&device_id) {
-                    if let Ok(device) = future.get() {
+    for device_info in btc_devices_info.into_iter() {
+        if let Ok(device_id) = device_info.Id() {
+            if let Ok(future) = BluetoothDevice::FromIdAsync(&device_id) {
+                if let Ok(device) = future.get() {
                         let name = device.Name()?.to_string();
                         let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
                         let battery = read_btc_battery_from_device_id(&device_id.to_string());
@@ -324,10 +324,10 @@ fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>)>, Bo
     let ble_selector = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true)?;
     let ble_op = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector)?;
     let ble_devices_info = ble_op.get()?;
-        for device_info in ble_devices_info.into_iter() {
-            if let Ok(device_id) = device_info.Id() {
-                if let Ok(future) = BluetoothLEDevice::FromIdAsync(&device_id) {
-                    if let Ok(device) = future.get() {
+    for device_info in ble_devices_info.into_iter() {
+        if let Ok(device_id) = device_info.Id() {
+            if let Ok(future) = BluetoothLEDevice::FromIdAsync(&device_id) {
+                if let Ok(device) = future.get() {
                         let name = device.Name()?.to_string();
                         let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
                         let battery = read_ble_battery(&device);
@@ -362,8 +362,31 @@ fn read_ble_battery(ble_device: &BluetoothLEDevice) -> Option<u8> {
     Some(level)
 }
 
-fn read_btc_battery_from_device_id(_device_id: &str) -> Option<u8> {
-    // BTC battery via PnP requires complex device tree traversal (see BlueGauge's windows_pnp crate)
-    // Not implemented yet - BLE battery via GATT works for BLE devices
+fn read_btc_battery_from_device_id(device_id: &str) -> Option<u8> {
+    let mac = device_id.rsplit('-').next()?;
+    let mac_upper = mac.to_uppercase().replace(':', "");
+
+    // Use windows_pnp to enumerate all system devices and find battery property
+    let devices = windows_pnp::PnpEnumerator::enumerate_present_devices()
+        .ok()?;
+
+    // DEVPKEY_BLUETOOTH_BATTERY = {104EA319-6EE2-4701-BD47-8DDBF425BBE5}, pid=2
+    let battery_key = windows_pnp::PnpDevicePropertyKey {
+        fmtid: windows_pnp_uuid::Uuid::from_u128(0x104EA319_6EE2_4701_BD47_8DDBF425BBE5),
+        pid: 2,
+    };
+
+    for device in devices {
+        let instance_id = &device.device_instance_id;
+        if !instance_id.contains("BTHENUM\\") || !instance_id.to_uppercase().contains(&mac_upper) {
+            continue;
+        }
+
+        if let Some(props) = &device.device_instance_properties {
+            if let Some(windows_pnp::PnpDevicePropertyValue::Byte(battery)) = props.get(&battery_key) {
+                return Some(*battery);
+            }
+        }
+    }
     None
 }
