@@ -9,7 +9,6 @@ mod windows;
 mod wmi_query;
 
 use tauri::Manager;
-use tauri_plugin_notification::NotificationExt;
 
 fn main() {
     // Init COM with apartment-threaded mode (same as Tauri) BEFORE Tauri starts.
@@ -29,17 +28,11 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--autostart"]),
         ))
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let _ = app.get_webview_window("popup").map(|w| {
                 let _ = w.show();
                 let _ = w.set_focus();
             });
-            let _ = app.notification()
-                .builder()
-                .title("PeriphMonitor")
-                .body("PeriphMonitor 已在运行中")
-                .show();
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
