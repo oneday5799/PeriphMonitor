@@ -124,14 +124,14 @@ html, body {
 }
 
 .group {
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 /* Windows 11 settings card */
 .group-card {
   background: #fff;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
   overflow: hidden;
 }
 
