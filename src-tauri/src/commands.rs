@@ -5,7 +5,6 @@ use tauri::Manager;
 
 #[tauri::command(async)]
 pub async fn get_devices() -> Vec<Device> {
-    // Run WMI query in a blocking thread to avoid blocking the event loop
     tokio::task::spawn_blocking(|| query_devices())
         .await
         .unwrap_or_default()
@@ -13,13 +12,12 @@ pub async fn get_devices() -> Vec<Device> {
 
 #[tauri::command]
 pub fn toggle_popup(app: tauri::AppHandle) {
-    // Delegate to the main toggle_popup function
-    super::toggle_popup(&app);
+    crate::popup::toggle(&app);
 }
 
 #[tauri::command]
 pub fn open_settings(app: tauri::AppHandle) {
-    super::open_settings(&app);
+    crate::windows::open_settings(&app);
 }
 
 #[tauri::command]
@@ -51,7 +49,6 @@ pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
             c.hidden_devices.push(name);
         }
     });
-    // Notify all windows that config changed
     let _ = app.emit("config-changed", ());
 }
 

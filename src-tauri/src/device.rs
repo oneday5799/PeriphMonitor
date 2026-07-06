@@ -17,13 +17,3 @@ pub struct Device {
     pub status: String,
     pub battery: Option<i32>,
 }
-
-impl Device {
-    #[allow(dead_code)]
-    pub fn info(&self) -> String {
-        match self.battery {
-            Some(l) => format!("电量: {}%", l),
-            None => self.status.clone(),
-        }
-    }
-}

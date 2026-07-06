@@ -1,15 +1,6 @@
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
-const GROUPS = [
-  { key: "Audio", label: "音频设备", subtitle: "扬声器、耳机等音频设备", icon: "🔊" },
-  { key: "Usb", label: "输入设备", subtitle: "键盘、鼠标等USB设备", icon: "⌨️" },
-  { key: "Bluetooth", label: "蓝牙设备", subtitle: "蓝牙连接的外设", icon: "📶" },
-  { key: "Battery", label: "电池", subtitle: "电池设备", icon: "🔋" },
-  { key: "Monitor", label: "显示器", subtitle: "显示器设备", icon: "🖥️" },
-  { key: "Other", label: "其他设备", subtitle: "未归类的设备", icon: "📦" },
-];
-
 let config = null;
 let devices = [];
 let expandedGroups = new Set();
@@ -17,7 +8,6 @@ let deviceGroups = {};
 
 async function init() {
   try {
-    // Load config first (fast, no WMI query)
     config = await invoke("get_config");
 
     // Auto-start toggle
@@ -36,11 +26,8 @@ async function init() {
     filterToggle.addEventListener("change", async () => {
       config.filter_enabled = filterToggle.checked;
       filterWrap.style.display = filterToggle.checked ? "block" : "none";
-      console.log("Filter toggled to:", config.filter_enabled);
       await invoke("update_config", { newConfig: config });
-      console.log("Config saved, reloading devices...");
       await loadDevicesAsync();
-      console.log("Devices reloaded, count:", devices.length);
     });
 
     // Filter regex input
@@ -56,7 +43,6 @@ async function init() {
       }, 500);
     });
 
-    // Load devices asynchronously (WMI query, may be slow)
     loadDevicesAsync();
   } catch (e) {
     console.error("Failed to load settings:", e);
@@ -85,26 +71,22 @@ function renderGroups() {
     groups[group].push(d);
   }
 
-  for (const group of GROUPS) {
+  for (const group of CATEGORIES) {
     const devs = groups[group.key] || [];
     const groupEl = document.createElement("div");
     groupEl.className = "group";
 
-    // Card container
     const card = document.createElement("div");
     card.className = "group-card";
 
-    // Header
     const header = document.createElement("div");
     header.className = "group-header";
 
-    // Icon
     const icon = document.createElement("div");
     icon.className = "group-icon";
     icon.textContent = group.icon;
     header.appendChild(icon);
 
-    // Text container
     const textWrap = document.createElement("div");
     textWrap.className = "group-text";
 
@@ -128,7 +110,6 @@ function renderGroups() {
     groupInput.type = "checkbox";
     groupInput.checked = !isGroupHidden;
 
-    // Stop all events from propagating to header
     groupToggle.addEventListener("click", (e) => {
       e.stopPropagation();
     });
@@ -152,7 +133,6 @@ function renderGroups() {
     arrow.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2L8 6L4 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     header.appendChild(arrow);
 
-    // Items container
     const items = document.createElement("div");
     items.className = "group-items";
 
@@ -168,13 +148,11 @@ function renderGroups() {
       }
     });
 
-    // Restore expanded state
     if (expandedGroups.has(group.key)) {
       items.classList.add("show");
       arrow.classList.add("expanded");
     }
 
-    // Device items
     for (const dev of devs) {
       const item = document.createElement("div");
       item.className = "device-item";
@@ -214,7 +192,6 @@ function renderGroups() {
     groupEl.appendChild(card);
     container.appendChild(groupEl);
 
-    // Set maxHeight for initially expanded groups after DOM is ready
     if (expandedGroups.has(group.key)) {
       requestAnimationFrame(() => {
         items.style.maxHeight = items.scrollHeight + "px";
@@ -223,7 +200,6 @@ function renderGroups() {
   }
 }
 
-// Listen for config changes from other windows
 listen("config-changed", async () => {
   config = await invoke("get_config");
   loadDevicesAsync();

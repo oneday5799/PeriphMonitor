@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 use regex::Regex;
 use wmi::WMIConnection;
@@ -23,39 +23,76 @@ struct MonitorDevice {
     status: Option<String>,
 }
 
+fn classify_device(name: &str, pnp_class: &str, pnp_id: &str, caption: &str) -> DevType {
+    let lower_combined = format!("{} {}", name, caption).to_lowercase();
+
+    if pnp_class.eq_ignore_ascii_case("Audio") || pnp_class.eq_ignore_ascii_case("AudioEndpoint") {
+        return DevType::Audio;
+    }
+    if pnp_class.eq_ignore_ascii_case("Keyboard") || pnp_class.eq_ignore_ascii_case("Mouse") {
+        return DevType::Usb;
+    }
+    if pnp_class.eq_ignore_ascii_case("Bluetooth")
+        || pnp_id.starts_with("BTHENUM\\")
+        || pnp_id.starts_with("SWD\\")
+    {
+        if is_audio(&lower_combined) { return DevType::Audio; }
+        if is_usb(name, caption) { return DevType::Usb; }
+        if is_bt_peripheral(name) { return DevType::Bluetooth; }
+        return DevType::Other;
+    }
+    if pnp_id.starts_with("USB\\") && is_usb(name, caption) {
+        return DevType::Usb;
+    }
+    DevType::Other
+}
+
+fn classify_bluetooth(name: &str) -> Option<DevType> {
+    let lower = name.to_lowercase();
+    if is_audio(&lower) { return Some(DevType::Audio); }
+    if is_usb(name, "") { return Some(DevType::Usb); }
+    if is_bt_peripheral(name) { return Some(DevType::Bluetooth); }
+    None
+}
+
+fn try_insert(
+    name: &str,
+    dt: DevType,
+    status: &str,
+    battery: Option<i32>,
+    seen: &mut HashSet<String>,
+    devices: &mut Vec<Device>,
+) {
+    let cn = core_name(name);
+    if !seen.insert(cn.clone()) {
+        if let Some(existing) = devices.iter_mut().find(|d| core_name(&d.name) == cn) {
+            if name.len() < existing.name.len() {
+                existing.name = name.to_string();
+                existing.status = status.to_string();
+            }
+        }
+        return;
+    }
+    devices.push(Device {
+        name: name.to_string(),
+        dt,
+        status: status.to_string(),
+        battery,
+    });
+}
+
 pub fn query_devices() -> Vec<Device> {
     let mut all = vec![];
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
 
-    let log = |msg: &str| {
-        use std::io::Write;
-        let mut f = std::fs::OpenOptions::new()
-            .create(true).append(true)
-            .open("debug.log").unwrap();
-        writeln!(f, "{}", msg).unwrap();
-    };
-    log("query_devices called");
-
-    // Read filter state once at the start
     let filter_enabled = config::with_config(|c| c.filter_enabled);
-    log(&format!("Filter enabled: {}", filter_enabled));
 
-    // COM is already initialized in main() with COINIT_APARTMENTTHREADED.
-    // Use assume_initialized() to avoid RPC_E_CHANGED_MODE from re-initializing.
     let com = unsafe { wmi::COMLibrary::assume_initialized() };
-    log("COMLibrary assume_initialized OK");
 
     let con = match WMIConnection::new(com) {
-        Ok(c) => {
-            log("WMIConnection OK");
-            c
-        }
-        Err(e) => {
-            log(&format!("WMIConnection failed: {:?}", e));
-            return all;
-        }
+        Ok(c) => c,
+        Err(_) => return all,
     };
-    log("Starting PnPEntity query...");
 
     // Main PnPEntity query
     if let Ok(rows) = con.raw_query::<HashMap<String, wmi::Variant>>(
@@ -97,95 +134,24 @@ pub fn query_devices() -> Vec<Device> {
                 Some(code) => code == 0,
                 None => status_str == "OK",
             };
-            let s = if connected {
-                "已连接".to_string()
-            } else {
-                "已配对".to_string()
-            };
-            if n.is_empty() {
-                continue;
-            }
-            let cn = core_name(&n);
-            let dt: DevType;
-            if pnp.eq_ignore_ascii_case("Audio") || pnp.eq_ignore_ascii_case("AudioEndpoint") {
-                dt = DevType::Audio;
-            } else if pnp.eq_ignore_ascii_case("Keyboard") || pnp.eq_ignore_ascii_case("Mouse") {
-                dt = DevType::Usb;
-            } else if pnp.eq_ignore_ascii_case("Bluetooth")
-                || u.starts_with("BTHENUM\\")
-                || u.starts_with("SWD\\")
-            {
-                let t = format!("{} {}", n, cap).to_lowercase();
-                if is_audio(&t) {
-                    dt = DevType::Audio;
-                } else if is_usb(&n, &cap) {
-                    dt = DevType::Usb;
-                } else if is_bt_peripheral(&n) {
-                    dt = DevType::Bluetooth;
-                } else {
-                    dt = DevType::Other;
-                }
-            } else if u.starts_with("USB\\") && is_usb(&n, &cap) {
-                dt = DevType::Usb;
-            } else {
-                dt = DevType::Other;
-            }
-            if !seen.insert(cn.clone()) {
-                if let Some(existing) = all.iter_mut().find(|d| core_name(&d.name) == cn) {
-                    if n.len() < existing.name.len() {
-                        existing.name = n;
-                        existing.status = s;
-                    }
-                }
-                continue;
-            }
-            all.push(Device {
-                name: n,
-                dt,
-                status: s,
-                battery: None,
-            });
+            let s = if connected { "已连接" } else { "已配对" };
+            if n.is_empty() { continue; }
+
+            let dt = classify_device(&n, &pnp, &u, &cap);
+            try_insert(&n, dt, s, None, &mut seen, &mut all);
         }
     }
 
     // Paired Bluetooth devices via Windows Runtime API
     if let Ok(btc_devices) = find_paired_bluetooth_devices() {
         for (name, connected) in btc_devices {
-            if name.is_empty() {
-                continue;
-            }
-            let cn = core_name(&name);
-            let t = name.to_lowercase();
-            let dt: DevType;
-            if is_audio(&t) {
-                dt = DevType::Audio;
-            } else if is_usb(&name, "") {
-                dt = DevType::Usb;
-            } else if is_bt_peripheral(&name) {
-                dt = DevType::Bluetooth;
-            } else {
-                continue;
-            }
-            let s = if connected {
-                "已连接".to_string()
-            } else {
-                "已配对".to_string()
+            if name.is_empty() { continue; }
+            let dt = match classify_bluetooth(&name) {
+                Some(dt) => dt,
+                None => continue,
             };
-            if !seen.insert(cn.clone()) {
-                if let Some(existing) = all.iter_mut().find(|d| core_name(&d.name) == cn) {
-                    if name.len() < existing.name.len() {
-                        existing.name = name;
-                        existing.status = s;
-                    }
-                }
-                continue;
-            }
-            all.push(Device {
-                name,
-                dt,
-                status: s,
-                battery: None,
-            });
+            let s = if connected { "已连接" } else { "已配对" };
+            try_insert(&name, dt, s, None, &mut seen, &mut all);
         }
     }
 
@@ -214,9 +180,7 @@ pub fn query_devices() -> Vec<Device> {
                 d.name.unwrap_or_default(),
                 d.status.unwrap_or_default(),
             );
-            if n.is_empty() || s != "OK" {
-                continue;
-            }
+            if n.is_empty() || s != "OK" { continue; }
             if seen.insert(core_name(&n)) {
                 all.push(Device {
                     name: n,
@@ -228,8 +192,8 @@ pub fn query_devices() -> Vec<Device> {
         }
     }
 
-    // Remove Bluetooth devices that already appear as Audio or Input
-    let audio_input_names: std::collections::HashSet<String> = all
+    // Remove Bluetooth devices that already appear as Audio or USB
+    let audio_input_names: HashSet<String> = all
         .iter()
         .filter(|d| d.dt == DevType::Audio || d.dt == DevType::Usb)
         .map(|d| core_name(&d.name))
@@ -237,20 +201,19 @@ pub fn query_devices() -> Vec<Device> {
     all.retain(|d| d.dt != DevType::Bluetooth || !audio_input_names.contains(&core_name(&d.name)));
 
     // Apply user-defined regex filter
-    let filter_regex_str = config::with_config(|c| c.filter_regex.clone());
-    log(&format!("Filter regex: {}", filter_regex_str));
-    if filter_enabled && !filter_regex_str.is_empty() {
-        if let Ok(re) = Regex::new(&format!("(?i)({})", filter_regex_str)) {
-            let before = all.len();
-            all.retain(|d| !re.is_match(&d.name));
-            log(&format!("Regex filtered {} -> {} devices", before, all.len()));
+    if filter_enabled {
+        let filter_regex_str = config::with_config(|c| c.filter_regex.clone());
+        if !filter_regex_str.is_empty() {
+            if let Ok(re) = Regex::new(&format!("(?i)({})", filter_regex_str)) {
+                all.retain(|d| !re.is_match(&d.name));
+            }
         }
     }
 
     all
 }
 
-pub fn core_name(n: &str) -> String {
+fn core_name(n: &str) -> String {
     let inner = if let Some(i) = n.find(" (") {
         if let Some(j) = n.rfind(')') {
             if j > i + 2 {
@@ -324,7 +287,6 @@ fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool)>, Box<dyn std::e
 
     let mut result = Vec::new();
 
-    // Find paired Classic Bluetooth devices
     let btc_selector = BluetoothDevice::GetDeviceSelectorFromPairingState(true)?;
     let btc_op = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector)?;
     let btc_devices_info = btc_op.get()?;
@@ -340,7 +302,6 @@ fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool)>, Box<dyn std::e
         }
     }
 
-    // Find paired BLE devices
     let ble_selector = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true)?;
     let ble_op = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector)?;
     let ble_devices_info = ble_op.get()?;

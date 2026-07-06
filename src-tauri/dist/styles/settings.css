@@ -1,38 +1,8 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 html, body {
-  font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
-  background: #f3f3f3;
   width: 100%;
   height: 100%;
   overflow-y: scroll;
   user-select: none;
-}
-
-/* Windows 11 native scrollbar */
-body::-webkit-scrollbar {
-  width: 10px;
-}
-
-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-body::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.3);
-  border: 3.5px solid transparent;
-  border-radius: 5px;
-  background-clip: padding-box;
-}
-
-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.5);
-  background-clip: padding-box;
-  border-width: 2px;
 }
 
 .settings-container {

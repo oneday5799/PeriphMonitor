@@ -1,29 +1,8 @@
-const CATEGORY_ORDER = [
-  { key: "Audio", label: "音频设备" },
-  { key: "Usb", label: "输入设备" },
-  { key: "Bluetooth", label: "蓝牙设备" },
-  { key: "Battery", label: "电池" },
-  { key: "Monitor", label: "显示器" },
-  { key: "Other", label: "其他设备" },
-];
-
 let allDevices = [];
 let hiddenDevices = [];
 let hiddenGroups = [];
 let deviceNames = {};
 let deviceGroups = {};
-
-function getInvoke() {
-  return window.__TAURI__ && window.__TAURI__.core
-    ? window.__TAURI__.core.invoke
-    : null;
-}
-
-function getListen() {
-  return window.__TAURI__ && window.__TAURI__.event
-    ? window.__TAURI__.event.listen
-    : null;
-}
 
 async function loadDevices() {
   const list = document.getElementById("device-list");
@@ -69,7 +48,7 @@ function renderDevices() {
   }
 
   let hasContent = false;
-  for (const cat of CATEGORY_ORDER) {
+  for (const cat of CATEGORIES) {
     if (hiddenGroups.includes(cat.key)) continue;
     const devs = groups[cat.key];
     if (!devs || devs.length === 0) continue;
@@ -271,7 +250,7 @@ function showGroupDialog(dev) {
   const groupList = document.createElement("div");
   groupList.className = "group-list";
 
-  for (const cat of CATEGORY_ORDER) {
+  for (const cat of CATEGORIES) {
     const item = document.createElement("div");
     item.className = "group-option" + (cat.key === currentGroup ? " selected" : "");
     item.textContent = cat.label;
@@ -364,19 +343,15 @@ document.getElementById("btn-settings").addEventListener("click", async () => {
 
 // Refresh config and devices when window regains focus
 window.addEventListener("focus", async () => {
-  console.log("[popup] window focused, refreshing...");
   const invoke = getInvoke();
   if (!invoke) return;
   try {
     const cfg = await invoke("get_config");
-    console.log("[popup] config loaded, hidden_groups:", cfg.hidden_groups);
     hiddenDevices = cfg.hidden_devices || [];
     hiddenGroups = cfg.hidden_groups || [];
     deviceNames = cfg.device_names || {};
     deviceGroups = cfg.device_groups || {};
-    const devs = await invoke("get_devices");
-    allDevices = devs;
-    console.log("[popup] devices loaded:", devs.length, "rendering...");
+    allDevices = await invoke("get_devices");
     renderDevices();
   } catch (e) {
     console.error("Failed to refresh on focus:", e);

@@ -1,12 +1,4 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 body {
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-  background: #f3f3f3;
   overflow: hidden;
   user-select: none;
   border: 1px solid #d0d0d0;
@@ -68,28 +60,6 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 0 20px 20px;
-}
-
-/* Windows 11 native scrollbar for device list */
-.device-list::-webkit-scrollbar {
-  width: 10px;
-}
-
-.device-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.device-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.3);
-  border: 3.5px solid transparent;
-  border-radius: 5px;
-  background-clip: padding-box;
-}
-
-.device-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.5);
-  background-clip: padding-box;
-  border-width: 2px;
 }
 
 .loading {
