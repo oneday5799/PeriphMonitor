@@ -29,10 +29,9 @@ fn main() {
             Some(vec!["--autostart"]),
         ))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app.get_webview_window("popup").map(|w| {
-                let _ = w.show();
-                let _ = w.set_focus();
-            });
+            if app.get_webview_window("popup").is_some() {
+                popup::toggle(app);
+            }
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
@@ -50,6 +49,7 @@ fn main() {
         ])
         .setup(|app| {
             tray::setup_tray(app)?;
+            popup::toggle(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

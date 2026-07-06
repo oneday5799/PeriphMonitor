@@ -93,7 +93,21 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
-    let _ = popup::TRAY_POS.get_or_init(|| Mutex::new((100.0, 100.0)));
+    let _ = popup::TRAY_POS.get_or_init(|| {
+        let handle = app.handle();
+        let sf = windows::scale_factor(handle);
+        let screen_w = handle.primary_monitor()
+            .ok()
+            .flatten()
+            .map(|m| m.size().width as f64 / sf)
+            .unwrap_or(1920.0);
+        let screen_h = handle.primary_monitor()
+            .ok()
+            .flatten()
+            .map(|m| m.size().height as f64 / sf)
+            .unwrap_or(1080.0);
+        Mutex::new((screen_w - 300.0, screen_h - 50.0))
+    });
 
     let _app_handle = app.handle().clone();
     app.listen("config-changed", move |_| {
