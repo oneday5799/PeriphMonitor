@@ -1,7 +1,7 @@
 body {
   overflow: hidden;
   user-select: none;
-  border: 1px solid #d0d0d0;
+  border: none;
 }
 
 .popup-container {

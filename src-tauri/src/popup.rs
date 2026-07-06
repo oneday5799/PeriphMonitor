@@ -11,6 +11,26 @@ pub static POPUP_POS: OnceLock<Mutex<(f64, f64)>> = OnceLock::new();
 const POPUP_W: f64 = 360.0;
 const POPUP_H: f64 = 520.0;
 
+/// cubic-bezier(0.62, 0, 0.32, 1) easing — same as win11React
+fn cubic_bezier(t: f64) -> f64 {
+    let p1x = 0.62;
+    let p2x = 0.32;
+    // solve x(t) = progress for t using Newton-Raphson
+    let mut t_param = t;
+    for _ in 0..8 {
+        let x = 3.0 * p1x * t_param * (1.0 - t_param).powi(2)
+            + 3.0 * p2x * t_param.powi(2) * (1.0 - t_param)
+            + t_param.powi(3);
+        let dx = 3.0 * p1x * (1.0 - t_param).powi(2)
+            + 6.0 * (p2x - p1x) * t_param * (1.0 - t_param)
+            + 3.0 * (1.0 - p2x) * t_param.powi(2);
+        t_param -= (x - t) / dx;
+        t_param = t_param.clamp(0.0, 1.0);
+    }
+    3.0 * t_param.powi(2) * (1.0 - t_param)
+        + t_param.powi(3)
+}
+
 pub fn toggle(app: &tauri::AppHandle) {
     if ANIMATING.load(Ordering::Relaxed) {
         return;
@@ -106,12 +126,12 @@ fn create(app: &tauri::AppHandle, target_x: f64, target_y: f64) {
 }
 
 fn animate_open(window: &tauri::WebviewWindow, x: f64, start_y: f64, end_y: f64) {
-    let duration_ms = 200u64;
-    let frames = 16;
+    let duration_ms = 250u64;
+    let frames = 20;
     let step_ms = duration_ms / frames;
     for i in 0..=frames {
         let t = i as f64 / frames as f64;
-        let eased = 1.0 - (1.0 - t).powi(3);
+        let eased = cubic_bezier(t);
         let y = start_y + (end_y - start_y) * eased;
         let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
         std::thread::sleep(std::time::Duration::from_millis(step_ms));
@@ -124,12 +144,12 @@ fn animate_open(window: &tauri::WebviewWindow, x: f64, start_y: f64, end_y: f64)
 }
 
 fn animate_close(window: &tauri::WebviewWindow, x: f64, start_y: f64, end_y: f64) {
-    let duration_ms = 150u64;
-    let frames = 12;
+    let duration_ms = 200u64;
+    let frames = 16;
     let step_ms = duration_ms / frames;
     for i in 0..=frames {
         let t = i as f64 / frames as f64;
-        let eased = t * t * t;
+        let eased = cubic_bezier(t);
         let y = start_y + (end_y - start_y) * eased;
         let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
         std::thread::sleep(std::time::Duration::from_millis(step_ms));
