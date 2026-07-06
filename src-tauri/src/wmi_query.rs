@@ -366,9 +366,15 @@ fn read_btc_battery_from_device_id(device_id: &str) -> Option<u8> {
     let mac = device_id.rsplit('-').next()?;
     let mac_upper = mac.to_uppercase().replace(':', "");
 
-    // Use windows_pnp to enumerate all system devices and find battery property
-    let devices = windows_pnp::PnpEnumerator::enumerate_present_devices()
-        .ok()?;
+    // Use same approach as BlueGauge: filter by GUID_DEVCLASS_SYSTEM + BTHENUM instance ID
+    let class_guid = windows_sys::Win32::Devices::DeviceAndDriverInstallation::GUID_DEVCLASS_SYSTEM;
+    let filter = windows_pnp::PnpFilter::Contains(&[
+        "BTHENUM\\".to_string(),
+        mac_upper.clone(),
+    ]);
+    let devices = windows_pnp::PnpEnumerator::enumerate_present_devices_and_filter_by_device_setup_class(
+        class_guid, filter,
+    ).ok()?;
 
     // DEVPKEY_BLUETOOTH_BATTERY = {104EA319-6EE2-4701-BD47-8DDBF425BBE5}, pid=2
     let battery_key = windows_pnp::PnpDevicePropertyKey {
