@@ -160,13 +160,39 @@ function renderDevices() {
           // Refresh from backend to get real status
           try {
             allDevices = await invoke("get_devices");
-            renderDevices();
           } catch (err) {
             console.error("Refresh failed:", err);
           }
 
           // Check if status actually changed
           const refreshed = allDevices.find(d => d.name === dev.name);
+          const newStatus = refreshed ? refreshed.status : oldStatus;
+
+          // Update only this card's status and button in-place
+          const newStatusEl = card.querySelector(".device-status");
+          const newBatteryEl = card.querySelector(".device-battery");
+          if (newStatusEl) {
+            newStatusEl.textContent = newStatus;
+            newStatusEl.classList.remove("connected", "paired");
+            if (newStatus === "已连接") newStatusEl.classList.add("connected");
+            else if (newStatus === "已配对") newStatusEl.classList.add("paired");
+          }
+          if (newBatteryEl && refreshed && refreshed.battery != null) {
+            newBatteryEl.textContent = `${refreshed.battery}%`;
+            newBatteryEl.style.display = "";
+          }
+          connectBtn.disabled = false;
+          connectBtn.classList.remove("loading");
+          if (newStatus === "已连接") {
+            connectBtn.textContent = "断开";
+            connectBtn.dataset.action = "disconnect";
+          } else if (newStatus === "已配对") {
+            connectBtn.textContent = "连接";
+            connectBtn.dataset.action = "connect";
+          } else {
+            connectBtn.style.display = "none";
+          }
+
           if (refreshed && refreshed.status === oldStatus) {
             showToast(isConnect ? "连接失败" : "断开失败");
           }
