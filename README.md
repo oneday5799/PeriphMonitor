@@ -88,3 +88,4 @@ cargo tauri dev
 ### 致谢
 
 - [BlueGauge](https://github.com/iKineticate/BlueGauge) — 蓝牙电量读取方案参考，windows_pnp 库来源
+- [BluetoothAutoConnect](https://github.com/lvusyy/BluetoothAutoConnect) — 蓝牙连接/断开 PowerShell 脚本参考
