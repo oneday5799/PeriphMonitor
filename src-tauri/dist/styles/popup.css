@@ -99,21 +99,89 @@ body {
   background: #f0f0f0;
 }
 
+.device-info {
+  flex: 1;
+  min-width: 0;
+  margin-right: 12px;
+}
+
 .device-name {
   font-size: 14px;
   color: #000;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
-  margin-right: 12px;
+  margin-bottom: 2px;
+}
+
+.device-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .device-status {
   font-size: 13px;
   color: #808080;
   white-space: nowrap;
+}
+
+.device-battery {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+}
+
+.device-status.connected::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf50;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Device actions (connect/disconnect button) */
+.device-actions {
   flex-shrink: 0;
+}
+
+.connect-btn {
+  padding: 6px 14px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.connect-btn:hover {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.connect-btn:active {
+  background: #e0e0e0;
+}
+
+.connect-btn:disabled,
+.connect-btn.loading {
+  background: #f5f5f5;
+  color: #999;
+  border-color: #e0e0e0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.connect-btn:disabled:hover,
+.connect-btn.loading:hover {
+  background: #f5f5f5;
+  border-color: #e0e0e0;
 }
 
 /* Context menu */

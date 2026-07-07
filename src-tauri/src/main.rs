@@ -46,6 +46,8 @@ fn main() {
             commands::rename_device,
             commands::change_device_group,
             commands::toggle_group_hidden,
+            commands::connect_bluetooth_device,
+            commands::disconnect_bluetooth_device,
         ])
         .setup(|app| {
             tray::setup_tray(app)?;

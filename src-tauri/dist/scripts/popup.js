@@ -66,15 +66,91 @@ function renderDevices() {
       const card = document.createElement("div");
       card.className = "device-card";
 
+      // Device info container (name + status)
+      const infoEl = document.createElement("div");
+      infoEl.className = "device-info";
+
       const nameEl = document.createElement("div");
       nameEl.className = "device-name";
       nameEl.textContent = getDisplayName(dev);
-      card.appendChild(nameEl);
+      infoEl.appendChild(nameEl);
+
+      const statusRow = document.createElement("div");
+      statusRow.className = "device-status-row";
 
       const statusEl = document.createElement("div");
       statusEl.className = "device-status";
-      statusEl.textContent = dev.battery != null ? `${dev.battery}%  ${dev.status}` : dev.status;
-      card.appendChild(statusEl);
+      if (dev.status === "已连接") {
+        statusEl.classList.add("connected");
+      }
+      statusEl.textContent = dev.status;
+      statusRow.appendChild(statusEl);
+
+      if (dev.battery != null) {
+        const batteryEl = document.createElement("div");
+        batteryEl.className = "device-battery";
+        batteryEl.textContent = `${dev.battery}%`;
+        statusRow.appendChild(batteryEl);
+      }
+
+      infoEl.appendChild(statusRow);
+      card.appendChild(infoEl);
+
+      // Connect/disconnect button for Bluetooth devices
+      if (dev.is_bluetooth && (dev.status === "已配对" || dev.status === "已连接")) {
+        const actionsEl = document.createElement("div");
+        actionsEl.className = "device-actions";
+
+        const connectBtn = document.createElement("button");
+        connectBtn.className = "connect-btn";
+        if (dev.status === "已连接") {
+          connectBtn.textContent = "断开";
+          connectBtn.dataset.action = "disconnect";
+        } else {
+          connectBtn.textContent = "连接";
+          connectBtn.dataset.action = "connect";
+        }
+        connectBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const invoke = getInvoke();
+          if (!invoke) return;
+
+          const isConnect = connectBtn.dataset.action === "connect";
+
+          // Disable button and show loading state
+          connectBtn.disabled = true;
+          connectBtn.classList.add("loading");
+
+          // Update status text to show loading, hide battery
+          const statusEl = card.querySelector(".device-status");
+          const batteryEl = card.querySelector(".device-battery");
+          if (statusEl) {
+            statusEl.textContent = isConnect ? "正在连接..." : "正在断开...";
+            statusEl.classList.remove("connected");
+          }
+          if (batteryEl) batteryEl.style.display = "none";
+
+          try {
+            if (isConnect) {
+              await invoke("connect_bluetooth_device", { name: dev.name });
+            } else {
+              await invoke("disconnect_bluetooth_device", { name: dev.name });
+            }
+          } catch (err) {
+            console.error("BT action failed:", err);
+          }
+
+          // Refresh from backend to get real status
+          try {
+            allDevices = await invoke("get_devices");
+            renderDevices();
+          } catch (err) {
+            console.error("Refresh failed:", err);
+          }
+        });
+        actionsEl.appendChild(connectBtn);
+        card.appendChild(actionsEl);
+      }
 
       card.addEventListener("contextmenu", (e) => {
         e.preventDefault();
