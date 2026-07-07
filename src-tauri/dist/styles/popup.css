@@ -127,8 +127,8 @@ body {
 }
 
 .device-battery {
-  font-size: 12px;
-  color: #999;
+  font-size: 13px;
+  color: #808080;
   white-space: nowrap;
 }
 
@@ -139,6 +139,17 @@ body {
   height: 8px;
   border-radius: 50%;
   background: #4caf50;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.device-status.paired::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #999;
   margin-right: 6px;
   vertical-align: middle;
 }
@@ -325,4 +336,24 @@ body {
   background: #e8f4fd;
   border-color: #0078d7;
   color: #0078d7;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 3000;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.toast.show {
+  opacity: 1;
 }

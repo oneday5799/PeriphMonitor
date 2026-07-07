@@ -4,6 +4,19 @@ let hiddenGroups = [];
 let deviceNames = {};
 let deviceGroups = {};
 
+function showToast(msg) {
+  let el = document.querySelector(".toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove("show"), 2000);
+}
+
 async function loadDevices() {
   const list = document.getElementById("device-list");
   list.innerHTML = '<div class="loading">加载中...</div>';
@@ -82,6 +95,8 @@ function renderDevices() {
       statusEl.className = "device-status";
       if (dev.status === "已连接") {
         statusEl.classList.add("connected");
+      } else if (dev.status === "已配对") {
+        statusEl.classList.add("paired");
       }
       statusEl.textContent = dev.status;
       statusRow.appendChild(statusEl);
@@ -130,6 +145,8 @@ function renderDevices() {
           }
           if (batteryEl) batteryEl.style.display = "none";
 
+          const oldStatus = dev.status;
+
           try {
             if (isConnect) {
               await invoke("connect_bluetooth_device", { name: dev.name });
@@ -146,6 +163,12 @@ function renderDevices() {
             renderDevices();
           } catch (err) {
             console.error("Refresh failed:", err);
+          }
+
+          // Check if status actually changed
+          const refreshed = allDevices.find(d => d.name === dev.name);
+          if (refreshed && refreshed.status === oldStatus) {
+            showToast(isConnect ? "连接失败" : "断开失败");
           }
         });
         actionsEl.appendChild(connectBtn);
