@@ -30,6 +30,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 - 正则表达式过滤，可编辑过滤规则
 - 设备去重开关，支持按蓝牙设备名后缀（Hands-Free、A2DP 等）去重
 - 设备重命名与隐藏
+- 显示无名称蓝牙设备开关（默认关闭）
 - 设置页窗口状态自动记忆
 - 开机自启动支持
 - 单实例模式，重复启动时自动聚焦已有窗口
@@ -46,6 +47,32 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 | BTC 电量 | windows_pnp (DEVPKEY_BLUETOOTH_BATTERY) |
 | 异步 | tokio |
 | 配置 | TOML |
+
+### 项目结构
+
+```
+src-tauri/src/
+├── main.rs          # 应用入口，COM 初始化，Tauri 构建
+├── state.rs         # 全局状态（托盘位置、动画状态、自启动）
+├── classify.rs      # 设备分类逻辑（PNPClass/名称匹配）
+├── bluetooth.rs     # WinRT 蓝牙 API（配对设备、GATT/PnP 电量）
+├── wmi_query.rs     # WMI 查询编排，设备去重与过滤
+├── commands.rs      # Tauri 命令处理器
+├── config.rs        # 配置管理（TOML 加载/保存）
+├── device.rs        # 数据模型（Device, DevType）
+├── popup.rs         # 弹出窗口生命周期与动画
+├── tray.rs          # 系统托盘菜单与事件
+└── windows.rs       # 窗口创建与 DWM 圆角
+```
+
+### 设备过滤机制
+
+项目使用多层过滤确保只显示有意义的设备：
+
+1. **PNPClass 白名单**：仅查询 AudioEndpoint、Bluetooth、HIDClass、Keyboard、MEDIA、Mouse、Monitor
+2. **PNPDeviceID 结构过滤**：基于设备 ID 格式过滤蓝牙服务、通用 HID 接口、系统组件
+3. **正则表达式过滤**：可配置的设备名称过滤规则
+4. **设备去重**：按核心名称去重，支持蓝牙后缀合并
 
 ### 构建
 
