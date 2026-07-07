@@ -1,12 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::Ordering;
 use tauri::Manager;
 
 use crate::windows;
-
-pub static TRAY_POS: OnceLock<Mutex<(f64, f64)>> = OnceLock::new();
-pub static ANIMATING: AtomicBool = AtomicBool::new(false);
-pub static POPUP_POS: OnceLock<Mutex<(f64, f64)>> = OnceLock::new();
+use crate::state::{TRAY_POS, POPUP_POS, ANIMATING};
 
 const POPUP_W: f64 = 360.0;
 const POPUP_H: f64 = 520.0;

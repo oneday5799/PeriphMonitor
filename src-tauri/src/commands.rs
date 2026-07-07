@@ -117,54 +117,24 @@ pub fn toggle_group_hidden(app: tauri::AppHandle, group: String) {
 
 #[tauri::command(async)]
 pub async fn disconnect_bluetooth_device(name: String) -> Result<String, String> {
-    eprintln!("[BT] disconnect: {}", name);
-    let device_id = {
-        let ids = get_device_ids().lock().map_err(|e| e.to_string())?;
-        ids.get(&name).cloned().ok_or_else(|| format!("Device '{}' not found", name))?
-    };
-
-    let mac = device_id.rsplit('-').next().unwrap_or("").to_string();
-    let mac_clone = mac.clone();
-
-    // Find the script - try multiple paths
-    let candidates = [
-        std::path::PathBuf::from("scripts/bt_action.ps1"),
-        std::env::current_dir().unwrap_or_default().join("scripts/bt_action.ps1"),
-        std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.join("scripts/bt_action.ps1"))).unwrap_or_default(),
-        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|p| p.parent()).map(|p| p.join("src-tauri/scripts/bt_action.ps1"))).unwrap_or_default(),
-    ];
-
-    let script_path = candidates.iter().find(|p| p.exists()).cloned()
-        .ok_or("bt_action.ps1 not found")?;
-    let path_str = script_path.to_string_lossy().to_string();
-    eprintln!("[BT] Script: {}", path_str);
-
-    let output = tokio::task::spawn_blocking(move || {
-        std::process::Command::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", &path_str, "-Mac", &mac_clone, "-Action", "disconnect"])
-            .output()
-    }).await.map_err(|e| e.to_string())?
-      .map_err(|e| e.to_string())?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    eprintln!("[BT] stdout: {}", stdout);
-    if !stderr.is_empty() { eprintln!("[BT] stderr: {}", stderr); }
-
-    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-    Ok(stdout.trim().to_string())
+    bt_action(&name, "disconnect").await
 }
 
 #[tauri::command(async)]
 pub async fn connect_bluetooth_device(name: String) -> Result<String, String> {
-    eprintln!("[BT] connect: {}", name);
+    bt_action(&name, "connect").await
+}
+
+async fn bt_action(name: &str, action: &str) -> Result<String, String> {
+    eprintln!("[BT] {}: {}", action, name);
     let device_id = {
         let ids = get_device_ids().lock().map_err(|e| e.to_string())?;
-        ids.get(&name).cloned().ok_or_else(|| format!("Device '{}' not found", name))?
+        ids.get(name).cloned().ok_or_else(|| format!("Device '{}' not found", name))?
     };
 
     let mac = device_id.rsplit('-').next().unwrap_or("").to_string();
     let mac_clone = mac.clone();
+    let action = action.to_string();
 
     let candidates = [
         std::path::PathBuf::from("scripts/bt_action.ps1"),
@@ -180,7 +150,7 @@ pub async fn connect_bluetooth_device(name: String) -> Result<String, String> {
 
     let output = tokio::task::spawn_blocking(move || {
         std::process::Command::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", &path_str, "-Mac", &mac_clone, "-Action", "connect"])
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", &path_str, "-Mac", &mac_clone, "-Action", &action])
             .output()
     }).await.map_err(|e| e.to_string())?
       .map_err(|e| e.to_string())?;

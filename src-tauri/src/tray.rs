@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::Ordering;
+use std::sync::Mutex;
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -10,9 +10,7 @@ use tauri::{
 use crate::config;
 use crate::popup;
 use crate::windows;
-
-pub static AUTO_START: AtomicBool = AtomicBool::new(false);
-static AUTO_MENU_ITEM: OnceLock<Mutex<Option<MenuItem<tauri::Wry>>>> = OnceLock::new();
+use crate::state::{TRAY_POS, AUTO_START, AUTO_MENU_ITEM};
 
 pub fn init_auto_start() {
     AUTO_START.store(config::with_config(|c| c.auto_start), Ordering::Relaxed);
@@ -74,7 +72,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if let tauri::tray::TrayIconEvent::Click {
                 button, button_state, rect, ..
             } = event {
-                if let Some(pos) = popup::TRAY_POS.get() {
+                if let Some(pos) = TRAY_POS.get() {
                     let sf = windows::scale_factor(app);
                     let (px, py) = match rect.position {
                         tauri::Position::Physical(p) => (p.x as f64 / sf, p.y as f64 / sf),
@@ -93,7 +91,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
-    let _ = popup::TRAY_POS.get_or_init(|| {
+    let _ = TRAY_POS.get_or_init(|| {
         let handle = app.handle();
         let sf = windows::scale_factor(handle);
         let screen_w = handle.primary_monitor()

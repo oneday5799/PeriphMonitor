@@ -4,3 +4,4 @@
 /src-tauri/debug.log
 *.pdb
 *.bak
+debug.log

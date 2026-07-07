@@ -1,9 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod bluetooth;
+mod classify;
 mod commands;
 mod config;
 mod device;
 mod popup;
+mod state;
 mod tray;
 mod windows;
 mod wmi_query;
@@ -58,7 +61,7 @@ fn main() {
             match event {
                 tauri::WindowEvent::Focused(false) => {
                     if window.label() == "popup"
-                        && !popup::ANIMATING.load(std::sync::atomic::Ordering::Relaxed)
+                        && !state::ANIMATING.load(std::sync::atomic::Ordering::Relaxed)
                         && window.is_visible().unwrap_or(false)
                     {
                         let app = window.app_handle();
