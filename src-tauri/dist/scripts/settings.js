@@ -52,6 +52,15 @@ async function init() {
       await loadDevicesAsync();
     });
 
+    // Show unnamed BT devices toggle
+    const unnamedBtToggle = document.getElementById("toggle-unnamed-bt");
+    unnamedBtToggle.checked = config.show_unnamed_bt;
+    unnamedBtToggle.addEventListener("change", async () => {
+      config.show_unnamed_bt = unnamedBtToggle.checked;
+      await invoke("update_config", { newConfig: config });
+      await loadDevicesAsync();
+    });
+
     loadDevicesAsync();
   } catch (e) {
     console.error("Failed to load settings:", e);

@@ -13,6 +13,7 @@ pub struct Config {
     pub filter_enabled: bool,
     pub filter_regex: String,
     pub dedup_devices: bool,
+    pub show_unnamed_bt: bool,
 }
 
 impl Default for Config {
@@ -20,12 +21,13 @@ impl Default for Config {
         Self {
             auto_start: false,
             hidden_devices: vec![],
-            hidden_groups: vec!["Battery".to_string(), "Monitor".to_string(), "Other".to_string()],
+            hidden_groups: vec!["Battery".to_string(), "Monitor".to_string()],
             device_names: std::collections::HashMap::new(),
             device_groups: std::collections::HashMap::new(),
             filter_enabled: true,
             filter_regex: Self::default_filter_regex(),
             dedup_devices: true,
+            show_unnamed_bt: false,
         }
     }
 }
@@ -33,22 +35,7 @@ impl Default for Config {
 impl Config {
     /// Combined regex for all device exclusion filters (case-insensitive)
     pub fn default_filter_regex() -> String {
-        [
-            // excluded_audio
-            "high definition audio", "amd streaming", "amd high definition",
-            r"intel\(r\) display audio", r"realtek\(r\) audio", "virtual", "虚拟",
-            "steam streaming", "nahimic", "waves maxxaudio", "dgv1usba",
-            "synaptics smartaudio", "相声", "音频端点", "avrcp", "音频网关", "音频服务",
-            // excluded_input
-            "hid keyboard device", "hid-compliant mouse", "标准 ps/2", "standard ps/2",
-            "hid-compliant consumer", "标准键盘", "hid keyboard", "hid mouse",
-            // excluded_mon
-            "默认监视器", "通用即插即用监视器", "default monitor", "generic pnp monitor",
-        ]
-        .iter()
-        .map(|s| regex::escape(s))
-        .collect::<Vec<_>>()
-        .join("|")
+        "Virtual|虚拟|^HID|Audio Device|Audio 设备|Hands-Free|A2DP|gvinput Device|英特尔\\(R\\)".to_string()
     }
 }
 

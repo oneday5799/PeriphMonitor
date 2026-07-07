@@ -3,7 +3,6 @@
 window.CATEGORIES = [
   { key: "Audio", label: "音频设备", subtitle: "扬声器、耳机等音频设备", icon: "🔊" },
   { key: "Usb", label: "输入设备", subtitle: "键盘、鼠标等USB设备", icon: "⌨️" },
-  { key: "Bluetooth", label: "蓝牙设备", subtitle: "蓝牙连接的外设", icon: "📶" },
   { key: "Battery", label: "电池", subtitle: "电池设备", icon: "🔋" },
   { key: "Monitor", label: "显示器", subtitle: "显示器设备", icon: "🖥️" },
   { key: "Other", label: "其他设备", subtitle: "未归类的设备", icon: "📦" },

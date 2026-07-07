@@ -16,21 +16,17 @@ struct BatteryDevice {
     estimated_charge_remaining: Option<i32>,
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename = "Win32_DesktopMonitor")]
-struct MonitorDevice {
-    name: Option<String>,
-    status: Option<String>,
-}
-
 fn classify_device(name: &str, pnp_class: &str, pnp_id: &str, caption: &str) -> DevType {
     let lower_combined = format!("{} {}", name, caption).to_lowercase();
 
-    if pnp_class.eq_ignore_ascii_case("Audio") || pnp_class.eq_ignore_ascii_case("AudioEndpoint") {
+    if pnp_class.eq_ignore_ascii_case("AudioEndpoint") || pnp_class.eq_ignore_ascii_case("MEDIA") {
         return DevType::Audio;
     }
     if pnp_class.eq_ignore_ascii_case("Keyboard") || pnp_class.eq_ignore_ascii_case("Mouse") {
         return DevType::Usb;
+    }
+    if pnp_class.eq_ignore_ascii_case("Monitor") {
+        return DevType::Monitor;
     }
     if pnp_class.eq_ignore_ascii_case("Bluetooth")
         || pnp_id.starts_with("BTHENUM\\")
@@ -38,7 +34,11 @@ fn classify_device(name: &str, pnp_class: &str, pnp_id: &str, caption: &str) -> 
     {
         if is_audio(&lower_combined) { return DevType::Audio; }
         if is_usb(name, caption) { return DevType::Usb; }
-        if is_bt_peripheral(name) { return DevType::Bluetooth; }
+        return DevType::Other;
+    }
+    if pnp_class.eq_ignore_ascii_case("HIDClass") {
+        if is_audio(&lower_combined) { return DevType::Audio; }
+        if is_usb(name, caption) { return DevType::Usb; }
         return DevType::Other;
     }
     if pnp_id.starts_with("USB\\") && is_usb(name, caption) {
@@ -48,11 +48,17 @@ fn classify_device(name: &str, pnp_class: &str, pnp_id: &str, caption: &str) -> 
 }
 
 fn classify_bluetooth(name: &str) -> Option<DevType> {
+    // MAC-address-only BLE devices (e.g. "Bluetooth e0:cc:f8:7f:d9:eb")
+    if name.starts_with("Bluetooth ") && name.len() == 27 && name.as_bytes()[12] == b':' {
+        if config::with_config(|c| c.show_unnamed_bt) {
+            return Some(DevType::Other);
+        }
+        return None;
+    }
     let lower = name.to_lowercase();
     if is_audio(&lower) { return Some(DevType::Audio); }
     if is_usb(name, "") { return Some(DevType::Usb); }
-    if is_bt_peripheral(name) { return Some(DevType::Bluetooth); }
-    None
+    Some(DevType::Other)
 }
 
 fn try_insert(
@@ -104,7 +110,8 @@ pub fn query_devices() -> Vec<Device> {
         Err(_) => return all,
     };
 
-    // Main PnPEntity query
+    // Main PnPEntity query - whitelist only relevant device classes
+    const PNPCLASS_WHITELIST: &[&str] = &["AudioEndpoint", "Bluetooth", "HIDClass", "Keyboard", "MEDIA", "Mouse", "Monitor"];
     if let Ok(rows) = con.raw_query::<HashMap<String, wmi::Variant>>(
         "SELECT Name, Status, PNPDeviceID, Caption, PNPClass, ConfigManagerErrorCode FROM Win32_PnPEntity",
     ) {
@@ -129,6 +136,12 @@ pub fn query_devices() -> Vec<Device> {
                 Some(wmi::Variant::String(s)) => s.clone(),
                 _ => String::new(),
             };
+
+            // Client-side whitelist filter (WMI WHERE clause unreliable for PNPClass)
+            if !PNPCLASS_WHITELIST.iter().any(|c| pnp.eq_ignore_ascii_case(c)) {
+                continue;
+            }
+
             let u = devid.to_uppercase();
 
             let err_val = row.get("ConfigManagerErrorCode").and_then(|v| match v {
@@ -146,6 +159,21 @@ pub fn query_devices() -> Vec<Device> {
             };
             let s = if connected { "已连接" } else { "已配对" };
             if n.is_empty() { continue; }
+
+            // Skip Bluetooth service/profile entries (GAP, GATT, AVRCP, etc.)
+            if pnp.eq_ignore_ascii_case("Bluetooth") && is_bt_service(&devid) {
+                continue;
+            }
+
+            // Skip generic HID device names (multiple interfaces of same physical device)
+            if pnp.eq_ignore_ascii_case("HIDClass") && is_generic_hid(&devid) {
+                continue;
+            }
+
+            // Skip system devices (BT enumerators, adapters, virtual HID)
+            if is_system_device(&devid) {
+                continue;
+            }
 
             let dt = classify_device(&n, &pnp, &u, &cap);
             try_insert(&n, dt, s, None, None, false, dedup_enabled, &mut seen, &mut all);
@@ -200,35 +228,7 @@ pub fn query_devices() -> Vec<Device> {
         }
     }
 
-    // Monitor
-    if let Ok(r) = con.query::<MonitorDevice>() {
-        for d in r {
-            let (n, s) = (
-                d.name.unwrap_or_default(),
-                d.status.unwrap_or_default(),
-            );
-            if n.is_empty() || s != "OK" { continue; }
-            if !dedup_enabled || seen.insert(core_name(&n)) {
-                all.push(Device {
-                    name: n,
-                    dt: DevType::Monitor,
-                    status: s,
-                    battery: None,
-                    device_id: None,
-                    is_bluetooth: false,
-                });
-            }
-        }
-    }
-
     // Remove Bluetooth devices that already appear as Audio or USB
-    let audio_input_names: HashSet<String> = all
-        .iter()
-        .filter(|d| d.dt == DevType::Audio || d.dt == DevType::Usb)
-        .map(|d| core_name(&d.name))
-        .collect();
-    all.retain(|d| d.dt != DevType::Bluetooth || !audio_input_names.contains(&core_name(&d.name)));
-
     // Apply user-defined regex filter
     if filter_enabled {
         let filter_regex_str = config::with_config(|c| c.filter_regex.clone());
@@ -310,17 +310,31 @@ fn is_usb(n: &str, c: &str) -> bool {
     .any(|k| t.contains(k))
 }
 
-fn is_bt_peripheral(n: &str) -> bool {
-    let l = n.to_lowercase();
-    [
-        "orochi", "rk-100", "rk100", "redragon", "havit", "jbl", "jabra", "sony",
-        "bose", "sennheiser", "beats", "samsung", "oppo", "vivo", "huawei", "xiaomi",
-        "redmi", "realme", "oneplus", "apple", "airpods", "buds", "galaxy",
-        "oculus", "quest", "ps5", "dualsense", "dualshock", "switch", "pro controller",
-        "8bitdo", "gameSir", "flydigi", "盖世小鸡", "飞智",
-    ]
-    .iter()
-    .any(|k| l.contains(k))
+fn is_bt_service(pnp_id: &str) -> bool {
+    let upper = pnp_id.to_uppercase();
+    upper.starts_with("BTHLEDEVICE\\{") || upper.starts_with("BTHENUM\\{")
+}
+
+fn is_generic_hid(pnp_id: &str) -> bool {
+    let upper = pnp_id.to_uppercase();
+    // HID collections with &COL are sub-interfaces
+    if upper.contains("&COL") {
+        return true;
+    }
+    // USB HID interfaces (multiple MI_x of same device)
+    if upper.starts_with("USB\\") {
+        return true;
+    }
+    // Bluetooth HID services
+    if upper.starts_with("BTHLEDEVICE\\{") || upper.starts_with("BTHENUM\\{") {
+        return true;
+    }
+    false
+}
+
+fn is_system_device(pnp_id: &str) -> bool {
+    let upper = pnp_id.to_uppercase();
+    upper.starts_with("BTH\\MS_")
 }
 
 fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, String)>, Box<dyn std::error::Error>> {
