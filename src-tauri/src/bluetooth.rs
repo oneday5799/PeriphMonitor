@@ -64,6 +64,59 @@ fn read_ble_battery(ble_device: &BluetoothLEDevice) -> Option<u8> {
     Some(level)
 }
 
+/// Check connection status of a single Bluetooth device by name
+pub fn check_device_connection(name: &str) -> Option<bool> {
+    use windows::Devices::Bluetooth::BluetoothConnectionStatus;
+
+    // Check classic Bluetooth devices
+    if let Ok(btc_selector) = BluetoothDevice::GetDeviceSelectorFromPairingState(true) {
+        if let Ok(btc_op) = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector) {
+            if let Ok(btc_devices_info) = btc_op.get() {
+                for device_info in btc_devices_info.into_iter() {
+                    if let Ok(device_id) = device_info.Id() {
+                        if let Ok(future) = BluetoothDevice::FromIdAsync(&device_id) {
+                            if let Ok(device) = future.get() {
+                                if let Ok(device_name) = device.Name() {
+                                    if device_name.to_string() == name {
+                                        if let Ok(status) = device.ConnectionStatus() {
+                                            return Some(status == BluetoothConnectionStatus::Connected);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check BLE devices
+    if let Ok(ble_selector) = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true) {
+        if let Ok(ble_op) = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector) {
+            if let Ok(ble_devices_info) = ble_op.get() {
+                for device_info in ble_devices_info.into_iter() {
+                    if let Ok(device_id) = device_info.Id() {
+                        if let Ok(future) = BluetoothLEDevice::FromIdAsync(&device_id) {
+                            if let Ok(device) = future.get() {
+                                if let Ok(device_name) = device.Name() {
+                                    if device_name.to_string() == name {
+                                        if let Ok(status) = device.ConnectionStatus() {
+                                            return Some(status == BluetoothConnectionStatus::Connected);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 fn read_btc_battery_from_device_id(device_id: &str) -> Option<u8> {
     let mac = device_id.rsplit('-').next()?;
     let mac_upper = mac.to_uppercase().replace(':', "");

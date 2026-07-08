@@ -157,16 +157,43 @@ function renderDevices() {
             console.error("BT action failed:", err);
           }
 
-          // Refresh from backend to get real status
+          // Poll for status change with short interval
+          const expectedConnected = isConnect;
+          let newStatus = oldStatus;
+          let statusChanged = false;
+          // Connect needs initial delay for BT stack to stabilize; disconnect is instant
+          const initialDelay = isConnect ? 800 : 100;
+          await new Promise(r => setTimeout(r, initialDelay));
+          const maxAttempts = 10; // 10 * 400ms = 4s max
+          for (let i = 0; i < maxAttempts; i++) {
+            try {
+              const connected = await invoke("check_bt_connection", { name: dev.name });
+              if (connected !== null && connected !== undefined) {
+                newStatus = connected ? "已连接" : "已配对";
+                if (connected === expectedConnected) {
+                  statusChanged = true;
+                  break;
+                }
+              }
+            } catch (err) {
+              console.error("Check connection failed:", err);
+              break;
+            }
+            await new Promise(r => setTimeout(r, 400));
+          }
+
+          // Full refresh to get battery info and device list
           try {
             allDevices = await invoke("get_devices");
           } catch (err) {
             console.error("Refresh failed:", err);
           }
 
-          // Check if status actually changed
+          // Use polling result if it detected change, otherwise use refresh result
           const refreshed = allDevices.find(d => d.name === dev.name);
-          const newStatus = refreshed ? refreshed.status : oldStatus;
+          if (!statusChanged && refreshed) {
+            newStatus = refreshed.status;
+          }
 
           // Update only this card's status and button in-place
           const newStatusEl = card.querySelector(".device-status");
@@ -193,7 +220,7 @@ function renderDevices() {
             connectBtn.style.display = "none";
           }
 
-          if (refreshed && refreshed.status === oldStatus) {
+          if (!statusChanged) {
             showToast(isConnect ? "连接失败" : "断开失败");
           }
         });

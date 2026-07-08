@@ -1,6 +1,7 @@
 use crate::config::{self, Config};
 use crate::device::Device;
 use crate::wmi_query::query_devices;
+use crate::bluetooth::check_device_connection;
 use tauri::Manager;
 
 // Store discovered device IDs for connect/disconnect operations
@@ -125,6 +126,14 @@ pub async fn connect_bluetooth_device(name: String) -> Result<String, String> {
     bt_action(&name, "connect").await
 }
 
+#[tauri::command(async)]
+pub async fn check_bt_connection(name: String) -> Result<Option<bool>, String> {
+    let result = tokio::task::spawn_blocking(move || check_device_connection(&name))
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result)
+}
+
 async fn bt_action(name: &str, action: &str) -> Result<String, String> {
     eprintln!("[BT] {}: {}", action, name);
     let device_id = {
@@ -160,7 +169,6 @@ async fn bt_action(name: &str, action: &str) -> Result<String, String> {
     eprintln!("[BT] stdout: {}", stdout);
     if !stderr.is_empty() { eprintln!("[BT] stderr: {}", stderr); }
 
-    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
     Ok(stdout.trim().to_string())
 }
 

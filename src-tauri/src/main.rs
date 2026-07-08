@@ -53,6 +53,7 @@ fn main() {
             commands::toggle_group_hidden,
             commands::connect_bluetooth_device,
             commands::disconnect_bluetooth_device,
+            commands::check_bt_connection,
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;

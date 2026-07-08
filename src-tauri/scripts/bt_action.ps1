@@ -111,11 +111,13 @@ if ($Action -eq "disconnect") {
     $enabled = 0
     foreach ($svc in $targetSvcs) {
         [BtNative]::BluetoothSetServiceState($hRadio, [ref]$deviceInfo, [ref]$svc, $DISABLE) | Out-Null
-        Start-Sleep -Milliseconds 150
+        Start-Sleep -Milliseconds 30
         $r = [BtNative]::BluetoothSetServiceState($hRadio, [ref]$deviceInfo, [ref]$svc, $ENABLE)
         Write-Output "EN:$svc -> $r"
-        if ($r -eq 0) { $enabled++ }
-        Start-Sleep -Milliseconds 1200
+        if ($r -eq 0) {
+            $enabled++
+            Start-Sleep -Milliseconds 100
+        }
     }
     Write-Output "ENABLED:$enabled"
 }
