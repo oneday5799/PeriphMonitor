@@ -3,7 +3,6 @@
   "productName": "PeriphMonitor",
   "version": "1.0.0",
   "identifier": "com.periph.monitor",
-  "publisher": "oneday5799",
   "mainBinaryName": "PeriphMonitor",
   "build": {
     "frontendDist": "dist",
@@ -20,6 +19,7 @@
   "bundle": {
     "active": true,
     "targets": [],
+    "publisher": "oneday5799",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
