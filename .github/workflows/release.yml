@@ -51,10 +51,17 @@ jobs:
           $tauri.version = $version
           $tauri | ConvertTo-Json -Depth 10 | Set-Content "src-tauri/tauri.conf.json" -Encoding UTF8
 
-          # Update Cargo.toml (only match version at start of line, not inside inline tables)
-          $cargo = Get-Content "src-tauri/Cargo.toml" -Raw
-          $cargo = $cargo -replace '(?m)^(\s*)version = ".*"', "`${1}version = `"$version`""
-          Set-Content "src-tauri/Cargo.toml" $cargo -Encoding UTF8 -NoNewline
+          # Update Cargo.toml (only update version in [package] section)
+          $cargo = Get-Content "src-tauri/Cargo.toml"
+          $inPackage = $false
+          for ($i = 0; $i -lt $cargo.Length; $i++) {
+            if ($cargo[$i] -match '^\[package\]') { $inPackage = $true }
+            elseif ($cargo[$i] -match '^\[') { $inPackage = $false }
+            if ($inPackage -and $cargo[$i] -match '^version\s*=\s*".*"') {
+              $cargo[$i] = "version = `"$version`""
+            }
+          }
+          $cargo -join "`n" | Set-Content "src-tauri/Cargo.toml" -Encoding UTF8 -NoNewline
 
           # Update package.json
           $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
