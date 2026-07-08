@@ -159,6 +159,7 @@ async fn bt_action(name: &str, action: &str) -> Result<String, String> {
         std::env::current_dir().unwrap_or_default().join("scripts/bt_action.ps1"),
         std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.join("scripts/bt_action.ps1"))).unwrap_or_default(),
         std::env::current_exe().ok().and_then(|p| p.parent().and_then(|p| p.parent()).map(|p| p.join("src-tauri/scripts/bt_action.ps1"))).unwrap_or_default(),
+        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|p| p.parent().and_then(|p| p.parent())).map(|p| p.join("src-tauri/scripts/bt_action.ps1"))).unwrap_or_default(),
     ];
 
     let script_path = candidates.iter().find(|p| p.exists()).cloned()
@@ -167,9 +168,19 @@ async fn bt_action(name: &str, action: &str) -> Result<String, String> {
     eprintln!("[BT] Script: {}", path_str);
 
     let output = tokio::task::spawn_blocking(move || {
-        std::process::Command::new("powershell")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", &path_str, "-Mac", &mac_clone, "-Action", &action])
-            .output()
+        #[cfg(target_os = "windows")]
+        let mut cmd = {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let mut c = std::process::Command::new("powershell");
+            c.creation_flags(CREATE_NO_WINDOW);
+            c
+        };
+        #[cfg(not(target_os = "windows"))]
+        let mut cmd = std::process::Command::new("powershell");
+
+        cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", &path_str, "-Mac", &mac_clone, "-Action", &action]);
+        cmd.output()
     }).await.map_err(|e| e.to_string())?
       .map_err(|e| e.to_string())?;
 
