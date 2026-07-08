@@ -3,6 +3,7 @@
   "productName": "PeriphMonitor",
   "version": "1.0.0",
   "identifier": "com.periph.monitor",
+  "publisher": "oneday5799",
   "mainBinaryName": "PeriphMonitor",
   "build": {
     "frontendDist": "dist",
