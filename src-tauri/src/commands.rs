@@ -76,8 +76,18 @@ pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
 
 #[tauri::command]
 pub fn open_bt_settings() -> Result<String, String> {
-    std::process::Command::new("cmd")
-        .args(["/c", "start", "ms-settings:bluetooth"])
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut c = std::process::Command::new("cmd");
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = std::process::Command::new("cmd");
+
+    cmd.args(["/c", "start", "ms-settings:bluetooth"])
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok("opened".to_string())
@@ -85,8 +95,18 @@ pub fn open_bt_settings() -> Result<String, String> {
 
 #[tauri::command]
 pub fn open_url(url: String) -> Result<String, String> {
-    std::process::Command::new("cmd")
-        .args(["/c", "start", &url])
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut c = std::process::Command::new("cmd");
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = std::process::Command::new("cmd");
+
+    cmd.args(["/c", "start", &url])
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok("opened".to_string())
