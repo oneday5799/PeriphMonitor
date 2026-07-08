@@ -3,6 +3,7 @@ let hiddenDevices = [];
 let hiddenGroups = [];
 let deviceNames = {};
 let deviceGroups = {};
+let useSystemBt = false;
 
 function showToast(msg) {
   let el = document.querySelector(".toast");
@@ -34,6 +35,7 @@ async function loadDevices() {
     hiddenGroups = config.hidden_groups || [];
     deviceNames = config.device_names || {};
     deviceGroups = config.device_groups || {};
+    useSystemBt = config.use_system_bt || false;
     renderDevices();
   } catch (e) {
     list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
@@ -131,6 +133,16 @@ function renderDevices() {
           if (!invoke) return;
 
           const isConnect = connectBtn.dataset.action === "connect";
+
+          // If system BT mode is enabled, open Windows Bluetooth settings instead
+          if (useSystemBt) {
+            try {
+              await invoke("open_bt_settings");
+            } catch (err) {
+              console.error("Failed to open BT settings:", err);
+            }
+            return;
+          }
 
           // Disable button and show loading state
           connectBtn.disabled = true;
@@ -503,6 +515,7 @@ window.addEventListener("focus", async () => {
     hiddenGroups = cfg.hidden_groups || [];
     deviceNames = cfg.device_names || {};
     deviceGroups = cfg.device_groups || {};
+    useSystemBt = cfg.use_system_bt || false;
     allDevices = await invoke("get_devices");
     renderDevices();
   } catch (e) {

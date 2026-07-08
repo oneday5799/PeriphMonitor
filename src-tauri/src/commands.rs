@@ -75,6 +75,15 @@ pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
 }
 
 #[tauri::command]
+pub fn open_bt_settings() -> Result<String, String> {
+    std::process::Command::new("cmd")
+        .args(["/c", "start", "ms-settings:bluetooth"])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok("opened".to_string())
+}
+
+#[tauri::command]
 pub fn close_window(app: tauri::AppHandle, name: String) {
     if let Some(window) = app.get_webview_window(&name) {
         let _ = window.close();

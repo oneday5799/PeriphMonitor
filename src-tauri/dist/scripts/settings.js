@@ -61,6 +61,14 @@ async function init() {
       await loadDevicesAsync();
     });
 
+    // Use system Bluetooth connection toggle
+    const useSystemBtToggle = document.getElementById("toggle-use-system-bt");
+    useSystemBtToggle.checked = config.use_system_bt;
+    useSystemBtToggle.addEventListener("change", async () => {
+      config.use_system_bt = useSystemBtToggle.checked;
+      await invoke("update_config", { newConfig: config });
+    });
+
     loadDevicesAsync();
   } catch (e) {
     console.error("Failed to load settings:", e);

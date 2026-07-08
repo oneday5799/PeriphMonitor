@@ -14,6 +14,7 @@ pub struct Config {
     pub filter_regex: String,
     pub dedup_devices: bool,
     pub show_unnamed_bt: bool,
+    pub use_system_bt: bool,
 }
 
 impl Default for Config {
@@ -28,6 +29,7 @@ impl Default for Config {
             filter_regex: Self::default_filter_regex(),
             dedup_devices: true,
             show_unnamed_bt: false,
+            use_system_bt: false,
         }
     }
 }
