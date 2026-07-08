@@ -62,6 +62,13 @@
       transition: background 0.15s;
     }
     .close-btn:hover { background: #e8e8e8; }
+    .homepage {
+      font-size: 13px;
+      color: #0078d7;
+      text-decoration: none;
+      margin-bottom: 24px;
+    }
+    .homepage:hover { text-decoration: underline; }
   </style>
 </head>
 <body oncontextmenu="return false">
@@ -78,11 +85,16 @@
     支持音频、USB、蓝牙、电池和显示器设备。
   </div>
   <div class="compat">兼容 Windows 10/11</div>
+  <a class="homepage" href="https://github.com/oneday5799/PeriphMonitor" id="homepage">项目主页</a>
   <button class="close-btn" id="close">确定</button>
 
   <script>
     document.addEventListener("contextmenu", e => e.preventDefault());
     const { invoke } = window.__TAURI__.core;
+    document.getElementById("homepage").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await invoke("open_url", { url: "https://github.com/oneday5799/PeriphMonitor" });
+    });
     document.getElementById("close").addEventListener("click", async () => {
       await invoke("close_window", { name: "about" });
     });

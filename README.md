@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-1.77+-black?style=flat-square&logo=rust" alt="Rust">
   <img src="https://img.shields.io/badge/Tauri-2.x-blue?style=flat-square&logo=tauri" alt="Tauri">
-  <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078d4?style=flat-square&logo=windows" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11%20(x64%2FARM64)-0078d4?style=flat-square&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
 </p>
 
@@ -31,6 +31,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 - 设备去重开关，支持按蓝牙设备名后缀（Hands-Free、A2DP 等）去重
 - 设备重命名与隐藏
 - 显示无名称蓝牙设备开关（默认关闭）
+- 使用系统蓝牙连接开关，支持跳转到 Windows 蓝牙设置页管理连接
 - 设置页窗口状态自动记忆
 - 开机自启动支持
 - 单实例模式，重复启动时自动聚焦已有窗口
@@ -78,8 +79,26 @@ src-tauri/src/
 
 ```bash
 npm install
-cargo tauri dev
+npm run tauri dev
 ```
+
+### 下载
+
+从 [Releases](https://github.com/oneday5799/PeriphMonitor/releases) 页面下载最新版本，支持 x64 和 ARM64 架构。
+
+### CI/CD
+
+推送 `v*` 格式的 tag 时自动触发 GitHub Actions 构建：
+
+```bash
+git tag v1.0.0-beta.1
+git push origin v1.0.0-beta.1
+```
+
+工作流会自动：
+- 从 tag 提取版本号并更新配置文件
+- 并行构建 x64 和 ARM64 安装包
+- 创建 GitHub Release（tag 名含 `-` 时标记为 Pre-release）
 
 ### 许可证
 

@@ -55,6 +55,7 @@ fn main() {
             commands::disconnect_bluetooth_device,
             commands::check_bt_connection,
             commands::open_bt_settings,
+            commands::open_url,
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;

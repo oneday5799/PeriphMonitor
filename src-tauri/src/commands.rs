@@ -84,6 +84,15 @@ pub fn open_bt_settings() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn open_url(url: String) -> Result<String, String> {
+    std::process::Command::new("cmd")
+        .args(["/c", "start", &url])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok("opened".to_string())
+}
+
+#[tauri::command]
 pub fn close_window(app: tauri::AppHandle, name: String) {
     if let Some(window) = app.get_webview_window(&name) {
         let _ = window.close();
