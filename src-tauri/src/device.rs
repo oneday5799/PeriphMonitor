@@ -8,7 +8,6 @@ pub enum DevType {
     Monitor,
     Other,
     Usb,
-    Wireless24G,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,4 +20,6 @@ pub struct Device {
     pub device_id: Option<String>,
     #[serde(default)]
     pub is_bluetooth: bool,
+    #[serde(default)]
+    pub is_wireless_24g: bool,
 }

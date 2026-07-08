@@ -5,6 +5,11 @@ let config = null;
 let devices = [];
 let expandedGroups = new Set();
 let deviceGroups = {};
+let deviceNames = {};
+
+function getDisplayName(dev) {
+  return deviceNames[dev.name] || dev.name;
+}
 
 async function init() {
   try {
@@ -80,6 +85,7 @@ async function loadDevicesAsync() {
     config = await invoke("get_config");
     devices = await invoke("get_devices");
     deviceGroups = config.device_groups || {};
+    deviceNames = config.device_names || {};
     renderGroups();
   } catch (e) {
     console.error("Failed to load devices:", e);
@@ -185,7 +191,7 @@ function renderGroups() {
 
       const nameEl = document.createElement("div");
       nameEl.className = "device-item-name";
-      nameEl.textContent = dev.name;
+      nameEl.textContent = getDisplayName(dev);
 
       const isHidden = config.hidden_devices.includes(dev.name);
       if (isHidden) nameEl.classList.add("hidden");

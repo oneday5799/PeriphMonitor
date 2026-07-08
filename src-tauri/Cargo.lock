@@ -8,6 +8,7 @@ version = "1.0.0"
 dependencies = [
  "regex",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",

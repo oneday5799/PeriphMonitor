@@ -110,6 +110,19 @@ function renderDevices() {
         statusRow.appendChild(batteryEl);
       }
 
+      // Connection type label
+      if (dev.is_bluetooth) {
+        const tagEl = document.createElement("div");
+        tagEl.className = "tag-bluetooth";
+        tagEl.textContent = "蓝牙";
+        statusRow.appendChild(tagEl);
+      } else if (dev.is_wireless_24g) {
+        const tagEl = document.createElement("div");
+        tagEl.className = "tag-24g";
+        tagEl.textContent = "2.4G";
+        statusRow.appendChild(tagEl);
+      }
+
       infoEl.appendChild(statusRow);
       card.appendChild(infoEl);
 

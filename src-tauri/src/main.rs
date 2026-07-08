@@ -5,6 +5,7 @@ mod classify;
 mod commands;
 mod config;
 mod device;
+mod device_data;
 mod popup;
 mod state;
 mod tray;
@@ -24,6 +25,7 @@ fn main() {
     }
 
     config::init_config();
+    device_data::init_device_data();
     tray::init_auto_start();
 
     let is_autostart = std::env::args().any(|a| a == "--autostart");

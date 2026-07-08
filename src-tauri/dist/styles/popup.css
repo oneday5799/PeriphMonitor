@@ -124,12 +124,7 @@ body {
   font-size: 13px;
   color: #808080;
   white-space: nowrap;
-}
-
-.device-battery {
-  font-size: 13px;
-  color: #808080;
-  white-space: nowrap;
+  line-height: 1;
 }
 
 .device-status.connected::before {
@@ -152,6 +147,27 @@ body {
   background: #999;
   margin-right: 6px;
   vertical-align: middle;
+}
+
+.device-battery {
+  font-size: 13px;
+  color: #808080;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.tag-bluetooth {
+  font-size: 13px;
+  color: #1976d2;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.tag-24g {
+  font-size: 13px;
+  color: #388e3c;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 /* Device actions (connect/disconnect button) */

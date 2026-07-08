@@ -5,7 +5,8 @@ use wmi::WMIConnection;
 
 use crate::device::{Device, DevType};
 use crate::config;
-use crate::classify::{classify_device, classify_bluetooth, is_bt_service, is_generic_hid, is_system_device};
+use crate::classify::{classify_device, classify_bluetooth, is_wireless_24g_by_vid_pid, is_bt_service, is_generic_hid, is_system_device};
+use crate::device_data;
 use crate::bluetooth::find_paired_bluetooth_devices;
 
 #[derive(Deserialize, Debug)]
@@ -18,36 +19,74 @@ struct BatteryDevice {
 
 fn try_insert(
     name: &str,
+    display_name: Option<&str>,
     dt: DevType,
     status: &str,
     battery: Option<i32>,
     device_id: Option<String>,
     is_bluetooth: bool,
+    is_wireless_24g: bool,
     dedup: bool,
     seen: &mut HashSet<String>,
     devices: &mut Vec<Device>,
 ) {
-    let cn = core_name(name);
-    if dedup && !seen.insert(cn.clone()) {
-        if let Some(existing) = devices.iter_mut().find(|d| core_name(&d.name) == cn) {
+    let effective_name = display_name.unwrap_or(name);
+    let cn = if display_name.is_some() {
+        effective_name.to_string()
+    } else {
+        core_name(name)
+    };
+    let has_conn_type = is_bluetooth || is_wireless_24g;
+
+    // If this device has no connection type, check if one with a type already exists
+    if dedup && !has_conn_type {
+        if devices.iter().any(|d| {
+            let ecn = core_name(&d.name);
+            (ecn == cn || d.name == cn) && (d.is_bluetooth || d.is_wireless_24g)
+        }) {
+            return; // Skip: a device with connection type already exists
+        }
+    }
+
+    // If this device has a connection type, remove any plain (no-type) entry with same name
+    if dedup && has_conn_type {
+        if let Some(pos) = devices.iter().position(|d| {
+            let ecn = core_name(&d.name);
+            (ecn == cn || d.name == cn) && !d.is_bluetooth && !d.is_wireless_24g
+        }) {
+            devices.remove(pos);
+        }
+    }
+
+    // Normal dedup: same name + same connection type
+    let conn_tag = if is_bluetooth { "bt" } else if is_wireless_24g { "24g" } else { "usb" };
+    let dedup_key = format!("{}:{}", cn, conn_tag);
+    if dedup && !seen.insert(dedup_key) {
+        if let Some(existing) = devices.iter_mut().find(|d| {
+            let ecn = core_name(&d.name);
+            let econn = if d.is_bluetooth { "bt" } else if d.is_wireless_24g { "24g" } else { "usb" };
+            (ecn == cn || d.name == cn) && econn == conn_tag
+        }) {
             if name.len() < existing.name.len() {
-                existing.name = name.to_string();
+                existing.name = effective_name.to_string();
                 existing.status = status.to_string();
                 if existing.device_id.is_none() {
                     existing.device_id = device_id;
                 }
                 existing.is_bluetooth = existing.is_bluetooth || is_bluetooth;
+                existing.is_wireless_24g = existing.is_wireless_24g || is_wireless_24g;
             }
         }
         return;
     }
     devices.push(Device {
-        name: name.to_string(),
+        name: effective_name.to_string(),
         dt,
         status: status.to_string(),
         battery,
         device_id,
         is_bluetooth,
+        is_wireless_24g,
     });
 }
 
@@ -131,7 +170,14 @@ pub fn query_devices() -> Vec<Device> {
             }
 
             let dt = classify_device(&n, &pnp, &u, &cap);
-            try_insert(&n, dt, s, None, None, false, dedup_enabled, &mut seen, &mut all);
+            let is_24g = is_wireless_24g_by_vid_pid(&u);
+            let display_name = if is_24g {
+                device_data::extract_vid_pid(&u)
+                    .and_then(|(vid, pid)| device_data::get_device_name(&vid, &pid))
+            } else {
+                None
+            };
+            try_insert(&n, display_name.as_deref(), dt, s, None, None, false, is_24g, dedup_enabled, &mut seen, &mut all);
         }
     }
 
@@ -147,7 +193,7 @@ pub fn query_devices() -> Vec<Device> {
             let s = if connected { "已连接" } else { "已配对" };
             let cn = core_name(&name);
             bt_names.insert(cn.clone());
-            if let Some(existing) = all.iter_mut().find(|d| core_name(&d.name) == cn) {
+            if let Some(existing) = all.iter_mut().find(|d| core_name(&d.name) == cn && d.is_bluetooth) {
                 existing.status = s.to_string();
                 if battery.is_some() {
                     existing.battery = battery.map(|b| b as i32);
@@ -155,9 +201,8 @@ pub fn query_devices() -> Vec<Device> {
                 if existing.device_id.is_none() {
                     existing.device_id = Some(device_id);
                 }
-                existing.is_bluetooth = true;
             } else {
-                try_insert(&name, dt, s, battery.map(|b| b as i32), Some(device_id), true, dedup_enabled, &mut seen, &mut all);
+                try_insert(&name, None, dt, s, battery.map(|b| b as i32), Some(device_id), true, false, dedup_enabled, &mut seen, &mut all);
             }
         }
     }
@@ -169,7 +214,7 @@ pub fn query_devices() -> Vec<Device> {
                 d.name.unwrap_or_default(),
                 d.status.unwrap_or_default(),
             );
-            if !n.is_empty() && (!dedup_enabled || seen.insert(core_name(&n))) {
+            if !n.is_empty() && (!dedup_enabled || seen.insert(format!("{}:usb", core_name(&n)))) {
                 all.push(Device {
                     name: n,
                     dt: DevType::Battery,
@@ -177,6 +222,7 @@ pub fn query_devices() -> Vec<Device> {
                     battery: d.estimated_charge_remaining,
                     device_id: None,
                     is_bluetooth: false,
+                    is_wireless_24g: false,
                 });
             }
         }
@@ -194,7 +240,7 @@ pub fn query_devices() -> Vec<Device> {
 
     // Temporarily hide status for devices not detected by WinRT Bluetooth API
     for d in &mut all {
-        if !bt_names.contains(&core_name(&d.name)) {
+        if d.is_bluetooth && !bt_names.contains(&core_name(&d.name)) {
             d.status.clear();
         }
     }
