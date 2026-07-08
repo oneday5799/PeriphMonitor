@@ -26,6 +26,8 @@ fn main() {
     config::init_config();
     tray::init_auto_start();
 
+    let is_autostart = std::env::args().any(|a| a == "--autostart");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -52,9 +54,11 @@ fn main() {
             commands::connect_bluetooth_device,
             commands::disconnect_bluetooth_device,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             tray::setup_tray(app)?;
-            popup::toggle(app.handle());
+            if !is_autostart {
+                popup::toggle(app.handle());
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
