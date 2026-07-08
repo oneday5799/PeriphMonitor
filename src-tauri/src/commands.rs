@@ -76,25 +76,15 @@ pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
 
 #[tauri::command]
 pub fn open_bt_settings() -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let mut c = std::process::Command::new("cmd");
-        c.creation_flags(CREATE_NO_WINDOW);
-        c
-    };
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = std::process::Command::new("cmd");
-
-    cmd.args(["/c", "start", "ms-settings:bluetooth"])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok("opened".to_string())
+    open_shell_url("ms-settings:bluetooth")
 }
 
 #[tauri::command]
 pub fn open_url(url: String) -> Result<String, String> {
+    open_shell_url(&url)
+}
+
+fn open_shell_url(url: &str) -> Result<String, String> {
     #[cfg(target_os = "windows")]
     let mut cmd = {
         use std::os::windows::process::CommandExt;
@@ -106,7 +96,7 @@ pub fn open_url(url: String) -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     let mut cmd = std::process::Command::new("cmd");
 
-    cmd.args(["/c", "start", &url])
+    cmd.args(["/c", "start", url])
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok("opened".to_string())
@@ -173,7 +163,6 @@ pub async fn check_bt_connection(name: String) -> Result<Option<bool>, String> {
 }
 
 async fn bt_action(name: &str, action: &str) -> Result<String, String> {
-    eprintln!("[BT] {}: {}", action, name);
     let device_id = {
         let ids = get_device_ids().lock().map_err(|e| e.to_string())?;
         ids.get(name).cloned().ok_or_else(|| format!("Device '{}' not found", name))?
@@ -194,7 +183,6 @@ async fn bt_action(name: &str, action: &str) -> Result<String, String> {
     let script_path = candidates.iter().find(|p| p.exists()).cloned()
         .ok_or("bt_action.ps1 not found")?;
     let path_str = script_path.to_string_lossy().to_string();
-    eprintln!("[BT] Script: {}", path_str);
 
     let output = tokio::task::spawn_blocking(move || {
         #[cfg(target_os = "windows")]
@@ -214,10 +202,6 @@ async fn bt_action(name: &str, action: &str) -> Result<String, String> {
       .map_err(|e| e.to_string())?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    eprintln!("[BT] stdout: {}", stdout);
-    if !stderr.is_empty() { eprintln!("[BT] stderr: {}", stderr); }
-
     Ok(stdout.trim().to_string())
 }
 

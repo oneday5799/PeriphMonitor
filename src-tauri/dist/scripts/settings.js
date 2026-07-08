@@ -7,10 +7,6 @@ let expandedGroups = new Set();
 let deviceGroups = {};
 let deviceNames = {};
 
-function getDisplayName(dev) {
-  return deviceNames[dev.name] || dev.name;
-}
-
 async function init() {
   try {
     config = await invoke("get_config");
@@ -191,7 +187,7 @@ function renderGroups() {
 
       const nameEl = document.createElement("div");
       nameEl.className = "device-item-name";
-      nameEl.textContent = getDisplayName(dev);
+      nameEl.textContent = getDisplayName(dev, deviceNames);
 
       const isHidden = config.hidden_devices.includes(dev.name);
       if (isHidden) nameEl.classList.add("hidden");

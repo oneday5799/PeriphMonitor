@@ -42,10 +42,6 @@ async function loadDevices() {
   }
 }
 
-function getDisplayName(dev) {
-  return deviceNames[dev.name] || dev.name;
-}
-
 function getDeviceGroup(dev) {
   return deviceGroups[dev.name] || dev.dt;
 }
@@ -87,7 +83,7 @@ function renderDevices() {
 
       const nameEl = document.createElement("div");
       nameEl.className = "device-name";
-      nameEl.textContent = getDisplayName(dev);
+      nameEl.textContent = getDisplayName(dev, deviceNames);
       infoEl.appendChild(nameEl);
 
       const statusRow = document.createElement("div");
@@ -103,13 +99,6 @@ function renderDevices() {
       statusEl.textContent = dev.status;
       statusRow.appendChild(statusEl);
 
-      if (dev.battery != null) {
-        const batteryEl = document.createElement("div");
-        batteryEl.className = "device-battery";
-        batteryEl.textContent = `${dev.battery}%`;
-        statusRow.appendChild(batteryEl);
-      }
-
       // Connection type label
       if (dev.is_bluetooth) {
         const tagEl = document.createElement("div");
@@ -121,6 +110,13 @@ function renderDevices() {
         tagEl.className = "tag-24g";
         tagEl.textContent = "2.4G";
         statusRow.appendChild(tagEl);
+      }
+
+      if (dev.battery != null) {
+        const batteryEl = document.createElement("div");
+        batteryEl.className = "device-battery";
+        batteryEl.textContent = `${dev.battery}%`;
+        statusRow.appendChild(batteryEl);
       }
 
       infoEl.appendChild(statusRow);
@@ -345,7 +341,7 @@ function showRenameDialog(dev) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "dialog-input";
-  input.value = getDisplayName(dev);
+  input.value = getDisplayName(dev, deviceNames);
   input.placeholder = "输入新名称";
   dialog.appendChild(input);
 

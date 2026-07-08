@@ -2,10 +2,19 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use serde::Deserialize;
+
 #[derive(Debug, Clone)]
 pub struct DeviceInfo {
     pub name: String,
     pub device_type: String,
+}
+
+#[derive(Deserialize)]
+struct RawDeviceEntry {
+    name: String,
+    #[serde(default)]
+    r#type: String,
 }
 
 static DEVICE_DATA: OnceLock<HashMap<String, HashMap<String, DeviceInfo>>> = OnceLock::new();
@@ -20,57 +29,29 @@ fn data_file_path() -> PathBuf {
 
 pub fn init_device_data() {
     let path = data_file_path();
-    eprintln!("[device_data] Loading from: {:?}", path);
-    match std::fs::read_to_string(&path) {
+    let data = match std::fs::read_to_string(&path) {
         Ok(content) => {
-            match serde_json::from_str::<serde_json::Value>(&content) {
-                Ok(val) => {
-                    let mut data: HashMap<String, HashMap<String, DeviceInfo>> = HashMap::new();
-                    if let Some(obj) = val.as_object() {
-                        for (vid, pids_val) in obj {
-                            if let Some(pids_obj) = pids_val.as_object() {
-                                let mut pids_map = HashMap::new();
-                                for (pid, info_val) in pids_obj {
-                                    let info = if let Some(info_obj) = info_val.as_object() {
-                                        DeviceInfo {
-                                            name: info_obj.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string(),
-                                            device_type: info_obj.get("type").and_then(|v| v.as_str()).unwrap_or("other").to_string(),
-                                        }
-                                    } else if let Some(name_str) = info_val.as_str() {
-                                        // Backward compat: old format with just name string
-                                        DeviceInfo {
-                                            name: name_str.to_string(),
-                                            device_type: "other".to_string(),
-                                        }
-                                    } else {
-                                        DeviceInfo {
-                                            name: "Unknown".to_string(),
-                                            device_type: "other".to_string(),
-                                        }
-                                    };
-                                    pids_map.insert(pid.clone(), info);
-                                }
-                                data.insert(vid.clone(), pids_map);
-                            }
+            match serde_json::from_str::<HashMap<String, HashMap<String, RawDeviceEntry>>>(&content) {
+                Ok(raw) => {
+                    let mut result = HashMap::new();
+                    for (vid, pids) in raw {
+                        let mut pids_map = HashMap::new();
+                        for (pid, entry) in pids {
+                            pids_map.insert(pid, DeviceInfo {
+                                name: entry.name,
+                                device_type: if entry.r#type.is_empty() { "other".to_string() } else { entry.r#type },
+                            });
                         }
+                        result.insert(vid, pids_map);
                     }
-                    eprintln!("[device_data] Loaded {} vendors", data.len());
-                    for (vid, pids) in &data {
-                        eprintln!("[device_data]   VID {}: {} PIDs", vid, pids.len());
-                    }
-                    DEVICE_DATA.set(data).ok();
+                    result
                 }
-                Err(e) => {
-                    eprintln!("[device_data] JSON parse error: {}", e);
-                    DEVICE_DATA.set(HashMap::new()).ok();
-                }
+                Err(_) => HashMap::new(),
             }
         }
-        Err(e) => {
-            eprintln!("[device_data] File read error: {}", e);
-            DEVICE_DATA.set(HashMap::new()).ok();
-        }
-    }
+        Err(_) => HashMap::new(),
+    };
+    DEVICE_DATA.set(data).ok();
 }
 
 pub fn is_wireless_24g(vid: &str, pid: &str) -> bool {
