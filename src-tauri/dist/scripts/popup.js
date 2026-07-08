@@ -141,7 +141,7 @@ function renderDevices() {
           const batteryEl = card.querySelector(".device-battery");
           if (statusEl) {
             statusEl.textContent = isConnect ? "正在连接..." : "正在断开...";
-            statusEl.classList.remove("connected");
+            statusEl.classList.remove("connected", "paired");
           }
           if (batteryEl) batteryEl.style.display = "none";
 
