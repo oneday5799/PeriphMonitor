@@ -4,6 +4,11 @@ use crate::config;
 pub fn classify_device(name: &str, pnp_class: &str, pnp_id: &str, caption: &str) -> DevType {
     let lower_combined = format!("{} {}", name, caption).to_lowercase();
 
+    // Check for 2.4G wireless devices by VID/PID
+    if pnp_id.starts_with("USB\\") && is_wireless_24g_by_vid_pid(pnp_id) {
+        return DevType::Wireless24G;
+    }
+
     if pnp_class.eq_ignore_ascii_case("AudioEndpoint") || pnp_class.eq_ignore_ascii_case("MEDIA") {
         return DevType::Audio;
     }
@@ -44,6 +49,36 @@ pub fn classify_bluetooth(name: &str) -> Option<DevType> {
     if is_audio(&lower) { return Some(DevType::Audio); }
     if is_usb(name, "") { return Some(DevType::Usb); }
     Some(DevType::Other)
+}
+
+pub fn is_wireless_24g_by_vid_pid(pnp_id: &str) -> bool {
+    let upper = pnp_id.to_uppercase();
+    let vid = match upper.find("VID_") {
+        Some(pos) => {
+            let start = pos + 4;
+            if start + 4 <= upper.len() { &upper[start..start + 4] } else { return false; }
+        }
+        None => return false,
+    };
+    let pid = match upper.find("PID_") {
+        Some(pos) => {
+            let start = pos + 4;
+            if start + 4 <= upper.len() { &upper[start..start + 4] } else { return false; }
+        }
+        None => return false,
+    };
+
+    match vid {
+        "046D" => matches!(pid, "C52B" | "C539" | "C53A" | "C53F" | "C548" | "C540"),
+        "1532" => matches!(pid,
+            "0064" | "0065" | "0066" | "0067" | "0068" | "0069" | "006A" | "006B" | "006C" | "006D" |
+            "006E" | "006F" | "0070" | "0071" | "0072" | "0073" | "0074" | "0075" | "0076" | "0077" |
+            "0078" | "0079" | "007A" | "007B" | "007C"
+        ),
+        "1038" => matches!(pid, "1122" | "1123" | "1124" | "1125" | "1126" | "1137" | "1138" | "1139" | "113A" | "113B"),
+        "1B1C" => matches!(pid, "1A01" | "1A02" | "1A03" | "1A04" | "1A05" | "1A06" | "1A07" | "1A08" | "1A09" | "1A0A"),
+        _ => false,
+    }
 }
 
 pub fn is_audio(n: &str) -> bool {

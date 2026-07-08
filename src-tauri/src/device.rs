@@ -8,6 +8,7 @@ pub enum DevType {
     Monitor,
     Other,
     Usb,
+    Wireless24G,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

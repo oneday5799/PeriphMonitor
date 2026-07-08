@@ -22,7 +22,7 @@ impl Default for Config {
         Self {
             auto_start: false,
             hidden_devices: vec![],
-            hidden_groups: vec!["Battery".to_string(), "Monitor".to_string()],
+            hidden_groups: vec!["Battery".to_string(), "Monitor".to_string(), "Wireless24G".to_string()],
             device_names: std::collections::HashMap::new(),
             device_groups: std::collections::HashMap::new(),
             filter_enabled: true,
