@@ -1,6 +1,7 @@
 [package]
 name = "PeriphMonitor"
 version = "1.0.0"
+authors = ["oneday5799"]
 edition = "2021"
 
 [dependencies]
