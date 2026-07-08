@@ -120,6 +120,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.RELEASE_TOKEN }}
           prerelease: ${{ steps.prerelease.outputs.IS_PRERELEASE == 'true' }}
           files: artifacts/*.exe
           generate_release_notes: true
