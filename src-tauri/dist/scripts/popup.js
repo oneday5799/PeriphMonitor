@@ -58,6 +58,21 @@ function renderDevices() {
     groups[group].push(d);
   }
 
+  // Sort devices within each group: connected first, then paired, then non-BT/2.4G
+  for (const group of Object.keys(groups)) {
+    groups[group].sort((a, b) => {
+      const getSortKey = (dev) => {
+        // Bluetooth or 2.4G devices: connected first, paired middle
+        if (dev.is_bluetooth || dev.is_wireless_24g) {
+          return dev.status === "已连接" ? 0 : 1;
+        }
+        // Non-BT/2.4G devices: last
+        return 2;
+      };
+      return getSortKey(a) - getSortKey(b);
+    });
+  }
+
   let hasContent = false;
   for (const cat of CATEGORIES) {
     if (hiddenGroups.includes(cat.key)) continue;
@@ -89,15 +104,18 @@ function renderDevices() {
       const statusRow = document.createElement("div");
       statusRow.className = "device-status-row";
 
-      const statusEl = document.createElement("div");
-      statusEl.className = "device-status";
-      if (dev.status === "已连接") {
-        statusEl.classList.add("connected");
-      } else if (dev.status === "已配对") {
-        statusEl.classList.add("paired");
+      // Only show connection status for Bluetooth or 2.4G devices
+      if (dev.is_bluetooth || dev.is_wireless_24g) {
+        const statusEl = document.createElement("div");
+        statusEl.className = "device-status";
+        if (dev.status === "已连接") {
+          statusEl.classList.add("connected");
+        } else if (dev.status === "已配对") {
+          statusEl.classList.add("paired");
+        }
+        statusEl.textContent = dev.status;
+        statusRow.appendChild(statusEl);
       }
-      statusEl.textContent = dev.status;
-      statusRow.appendChild(statusEl);
 
       // Connection type label
       if (dev.is_bluetooth) {
