@@ -355,96 +355,70 @@ function showContextMenu(x, y, dev) {
 }
 
 function showRenameDialog(dev) {
-  const overlay = document.createElement("div");
-  overlay.className = "dialog-overlay";
-
-  const dialog = document.createElement("div");
-  dialog.className = "rename-dialog";
-
-  const title = document.createElement("div");
-  title.className = "dialog-title";
-  title.textContent = "重命名设备";
-  dialog.appendChild(title);
-
   const input = document.createElement("input");
   input.type = "text";
   input.className = "dialog-input";
   input.value = getDisplayName(dev, deviceNames);
   input.placeholder = "输入新名称";
-  dialog.appendChild(input);
 
   const isRenamed = deviceNames[dev.name] !== undefined;
 
-  const buttons = document.createElement("div");
-  buttons.className = "dialog-buttons";
+  const buttons = [];
 
   if (isRenamed) {
-    const restoreBtn = document.createElement("button");
-    restoreBtn.className = "dialog-btn restore";
-    restoreBtn.textContent = "恢复默认";
-    restoreBtn.addEventListener("click", async () => {
+    buttons.push({
+      text: "恢复默认",
+      className: "restore",
+      onClick: async () => {
+        const invoke = getInvoke();
+        if (invoke) {
+          await invoke("rename_device", { original: dev.name, newName: "" });
+          const config = await invoke("get_config");
+          deviceNames = config.device_names || {};
+          renderDevices();
+        }
+        closeDialog(overlay);
+      },
+    });
+  }
+
+  buttons.push({
+    text: "取消",
+    className: "cancel",
+    onClick: () => closeDialog(overlay),
+  });
+
+  buttons.push({
+    text: "确定",
+    className: "confirm",
+    onClick: async () => {
+      const newName = input.value.trim();
       const invoke = getInvoke();
       if (invoke) {
-        await invoke("rename_device", { original: dev.name, newName: "" });
+        await invoke("rename_device", { original: dev.name, newName });
         const config = await invoke("get_config");
         deviceNames = config.device_names || {};
         renderDevices();
       }
-      overlay.remove();
-    });
-    buttons.appendChild(restoreBtn);
-  }
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.className = "dialog-btn cancel";
-  cancelBtn.textContent = "取消";
-  cancelBtn.addEventListener("click", () => {
-    overlay.remove();
+      closeDialog(overlay);
+    },
   });
 
-  const confirmBtn = document.createElement("button");
-  confirmBtn.className = "dialog-btn confirm";
-  confirmBtn.textContent = "确定";
-  confirmBtn.addEventListener("click", async () => {
-    const newName = input.value.trim();
-    const invoke = getInvoke();
-    if (invoke) {
-      await invoke("rename_device", { original: dev.name, newName });
-      const config = await invoke("get_config");
-      deviceNames = config.device_names || {};
-      renderDevices();
-    }
-    overlay.remove();
+  const overlay = createDialog({
+    title: "重命名设备",
+    content: [input],
+    buttons,
   });
-
-  buttons.appendChild(cancelBtn);
-  buttons.appendChild(confirmBtn);
-  dialog.appendChild(buttons);
-
-  overlay.appendChild(dialog);
-  document.body.appendChild(overlay);
 
   input.focus();
   input.select();
 
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") confirmBtn.click();
-    if (e.key === "Escape") overlay.remove();
+    if (e.key === "Enter") overlay.querySelector(".dialog-btn.confirm")?.click();
   });
 }
 
 function showGroupDialog(dev) {
-  const overlay = document.createElement("div");
-  overlay.className = "dialog-overlay";
-
-  const dialog = document.createElement("div");
-  dialog.className = "rename-dialog";
-
-  const title = document.createElement("div");
-  title.className = "dialog-title";
-  title.textContent = "更改分组";
-  dialog.appendChild(title);
-
   const currentGroup = getDeviceGroup(dev);
   const isCustomGroup = deviceGroups[dev.name] !== undefined;
 
@@ -465,63 +439,58 @@ function showGroupDialog(dev) {
     groupList.appendChild(item);
   }
 
-  dialog.appendChild(groupList);
+  const buttons = [];
 
-  const buttons = document.createElement("div");
-  buttons.className = "dialog-buttons";
-
-  // Restore default button (only if custom group)
   if (isCustomGroup) {
-    const restoreBtn = document.createElement("button");
-    restoreBtn.className = "dialog-btn restore";
-    restoreBtn.textContent = "恢复默认";
-    restoreBtn.addEventListener("click", async () => {
-      const invoke = getInvoke();
-      if (invoke) {
-        await invoke("change_device_group", { name: dev.name, group: "" });
-        const config = await invoke("get_config");
-        deviceGroups = config.device_groups || {};
-        renderDevices();
-      }
-      overlay.remove();
+    buttons.push({
+      text: "恢复默认",
+      className: "restore",
+      onClick: async () => {
+        const invoke = getInvoke();
+        if (invoke) {
+          await invoke("change_device_group", { name: dev.name, group: "" });
+          const config = await invoke("get_config");
+          deviceGroups = config.device_groups || {};
+          renderDevices();
+        }
+        closeDialog(overlay);
+      },
     });
-    buttons.appendChild(restoreBtn);
   }
 
-  const cancelBtn = document.createElement("button");
-  cancelBtn.className = "dialog-btn cancel";
-  cancelBtn.textContent = "取消";
-  cancelBtn.addEventListener("click", () => {
-    overlay.remove();
+  buttons.push({
+    text: "取消",
+    className: "cancel",
+    onClick: () => closeDialog(overlay),
   });
 
-  const confirmBtn = document.createElement("button");
-  confirmBtn.className = "dialog-btn confirm";
-  confirmBtn.textContent = "确定";
-  confirmBtn.addEventListener("click", async () => {
-    const selected = groupList.querySelector(".group-option.selected");
-    if (selected) {
-      const newGroup = selected.dataset.group;
-      const invoke = getInvoke();
-      if (invoke) {
-        await invoke("change_device_group", {
-          name: dev.name,
-          group: newGroup === dev.dt ? "" : newGroup
-        });
-        const config = await invoke("get_config");
-        deviceGroups = config.device_groups || {};
-        renderDevices();
+  buttons.push({
+    text: "确定",
+    className: "confirm",
+    onClick: async () => {
+      const selected = groupList.querySelector(".group-option.selected");
+      if (selected) {
+        const newGroup = selected.dataset.group;
+        const invoke = getInvoke();
+        if (invoke) {
+          await invoke("change_device_group", {
+            name: dev.name,
+            group: newGroup === dev.dt ? "" : newGroup
+          });
+          const config = await invoke("get_config");
+          deviceGroups = config.device_groups || {};
+          renderDevices();
+        }
       }
-    }
-    overlay.remove();
+      closeDialog(overlay);
+    },
   });
 
-  buttons.appendChild(cancelBtn);
-  buttons.appendChild(confirmBtn);
-  dialog.appendChild(buttons);
-
-  overlay.appendChild(dialog);
-  document.body.appendChild(overlay);
+  const overlay = createDialog({
+    title: "更改分组",
+    content: [groupList],
+    buttons,
+  });
 }
 
 function hideContextMenu() {

@@ -1,34 +1,15 @@
 use crate::config::{self, Config};
-use crate::device::Device;
+use crate::device::{self, Device};
+use crate::process;
 use crate::wmi_query::query_devices;
-use crate::bluetooth::check_device_connection;
 use tauri::Manager;
-
-// Store discovered device IDs for connect/disconnect operations
-use std::sync::OnceLock;
-use std::collections::HashMap;
-static DEVICE_IDS: OnceLock<std::sync::Mutex<HashMap<String, String>>> = OnceLock::new();
-
-fn get_device_ids() -> &'static std::sync::Mutex<HashMap<String, String>> {
-    DEVICE_IDS.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
-}
 
 #[tauri::command(async)]
 pub async fn get_devices() -> Vec<Device> {
     let devices = tokio::task::spawn_blocking(|| query_devices())
         .await
         .unwrap_or_default();
-
-    // Store device IDs for connect/disconnect operations
-    if let Ok(mut ids) = get_device_ids().lock() {
-        ids.clear();
-        for dev in &devices {
-            if let Some(ref device_id) = dev.device_id {
-                ids.insert(dev.name.clone(), device_id.clone());
-            }
-        }
-    }
-
+    device::store_device_ids(&devices);
     devices
 }
 
@@ -75,31 +56,13 @@ pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
 }
 
 #[tauri::command]
-pub fn open_bt_settings() -> Result<String, String> {
-    open_shell_url("ms-settings:bluetooth")
+pub fn open_bt_settings() -> Result<(), String> {
+    process::open_with_system("ms-settings:bluetooth")
 }
 
 #[tauri::command]
-pub fn open_url(url: String) -> Result<String, String> {
-    open_shell_url(&url)
-}
-
-fn open_shell_url(url: &str) -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let mut c = std::process::Command::new("cmd");
-        c.creation_flags(CREATE_NO_WINDOW);
-        c
-    };
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = std::process::Command::new("cmd");
-
-    cmd.args(["/c", "start", url])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok("opened".to_string())
+pub fn open_url(url: String) -> Result<(), String> {
+    process::open_with_system(&url)
 }
 
 #[tauri::command]
@@ -146,63 +109,26 @@ pub fn toggle_group_hidden(app: tauri::AppHandle, group: String) {
 
 #[tauri::command(async)]
 pub async fn disconnect_bluetooth_device(name: String) -> Result<String, String> {
-    bt_action(&name, "disconnect").await
+    let name = name.clone();
+    tokio::task::spawn_blocking(move || crate::bluetooth::bt_action(&name, "disconnect"))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command(async)]
 pub async fn connect_bluetooth_device(name: String) -> Result<String, String> {
-    bt_action(&name, "connect").await
+    let name = name.clone();
+    tokio::task::spawn_blocking(move || crate::bluetooth::bt_action(&name, "connect"))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command(async)]
 pub async fn check_bt_connection(name: String) -> Result<Option<bool>, String> {
-    let result = tokio::task::spawn_blocking(move || check_device_connection(&name))
+    let result = tokio::task::spawn_blocking(move || crate::bluetooth::check_device_connection(&name))
         .await
         .map_err(|e| e.to_string())?;
     Ok(result)
-}
-
-async fn bt_action(name: &str, action: &str) -> Result<String, String> {
-    let device_id = {
-        let ids = get_device_ids().lock().map_err(|e| e.to_string())?;
-        ids.get(name).cloned().ok_or_else(|| format!("Device '{}' not found", name))?
-    };
-
-    let mac = device_id.rsplit('-').next().unwrap_or("").to_string();
-    let mac_clone = mac.clone();
-    let action = action.to_string();
-
-    let candidates = [
-        std::path::PathBuf::from("scripts/bt_action.ps1"),
-        std::env::current_dir().unwrap_or_default().join("scripts/bt_action.ps1"),
-        std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.join("scripts/bt_action.ps1"))).unwrap_or_default(),
-        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|p| p.parent()).map(|p| p.join("src-tauri/scripts/bt_action.ps1"))).unwrap_or_default(),
-        std::env::current_exe().ok().and_then(|p| p.parent().and_then(|p| p.parent().and_then(|p| p.parent())).map(|p| p.join("src-tauri/scripts/bt_action.ps1"))).unwrap_or_default(),
-    ];
-
-    let script_path = candidates.iter().find(|p| p.exists()).cloned()
-        .ok_or("bt_action.ps1 not found")?;
-    let path_str = script_path.to_string_lossy().to_string();
-
-    let output = tokio::task::spawn_blocking(move || {
-        #[cfg(target_os = "windows")]
-        let mut cmd = {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            let mut c = std::process::Command::new("powershell");
-            c.creation_flags(CREATE_NO_WINDOW);
-            c
-        };
-        #[cfg(not(target_os = "windows"))]
-        let mut cmd = std::process::Command::new("powershell");
-
-        cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", &path_str, "-Mac", &mac_clone, "-Action", &action]);
-        cmd.output()
-    }).await.map_err(|e| e.to_string())?
-      .map_err(|e| e.to_string())?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    Ok(stdout.trim().to_string())
 }
 
 #[tauri::command]
@@ -213,22 +139,5 @@ pub fn open_24g_device_file() -> Result<(), String> {
         .ok_or("无法获取程序目录")?
         .join("data")
         .join("wireless_24g_devices.json");
-
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let mut c = std::process::Command::new("cmd");
-        c.creation_flags(CREATE_NO_WINDOW);
-        c
-    };
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = std::process::Command::new("cmd");
-
-    cmd.args(["/c", "start", "", &path.to_string_lossy()])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    process::open_with_system(&path.to_string_lossy())
 }
-
-

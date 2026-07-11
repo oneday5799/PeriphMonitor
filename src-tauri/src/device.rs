@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DevType {
@@ -22,4 +24,26 @@ pub struct Device {
     pub is_bluetooth: bool,
     #[serde(default)]
     pub is_wireless_24g: bool,
+}
+
+// 设备ID存储 — 用于蓝牙连接/断开操作
+static DEVICE_IDS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+pub fn get_device_ids() -> &'static Mutex<HashMap<String, String>> {
+    DEVICE_IDS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub fn store_device_ids(devices: &[Device]) {
+    if let Ok(mut ids) = get_device_ids().lock() {
+        ids.clear();
+        for dev in devices {
+            if let Some(ref device_id) = dev.device_id {
+                ids.insert(dev.name.clone(), device_id.clone());
+            }
+        }
+    }
+}
+
+pub fn get_device_id_by_name(name: &str) -> Option<String> {
+    get_device_ids().lock().ok()?.get(name).cloned()
 }

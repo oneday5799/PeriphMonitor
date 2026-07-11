@@ -1,6 +1,43 @@
 use windows::Devices::Bluetooth::{BluetoothDevice, BluetoothLEDevice};
 use windows::Devices::Enumeration::DeviceInformation;
 
+use crate::device;
+use crate::process;
+
+/// 执行蓝牙连接/断开操作
+pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
+    let device_id = device::get_device_id_by_name(name)
+        .ok_or_else(|| format!("Device '{}' not found", name))?;
+
+    let mac = device_id.rsplit('-').next().unwrap_or("").to_string();
+
+    let script_path = find_bt_script()?;
+    process::run_powershell_script(
+        &script_path,
+        &["-Mac", &mac, "-Action", action],
+    )
+}
+
+fn find_bt_script() -> Result<String, String> {
+    let candidates = [
+        std::path::PathBuf::from("scripts/bt_action.ps1"),
+        std::env::current_dir().unwrap_or_default().join("scripts/bt_action.ps1"),
+        std::env::current_exe().ok()
+            .and_then(|p| p.parent().map(|p| p.join("scripts/bt_action.ps1")))
+            .unwrap_or_default(),
+        std::env::current_exe().ok()
+            .and_then(|p| p.parent().and_then(|p| p.parent()).map(|p| p.join("src-tauri/scripts/bt_action.ps1")))
+            .unwrap_or_default(),
+        std::env::current_exe().ok()
+            .and_then(|p| p.parent().and_then(|p| p.parent().and_then(|p| p.parent())).map(|p| p.join("src-tauri/scripts/bt_action.ps1")))
+            .unwrap_or_default(),
+    ];
+    candidates.iter()
+        .find(|p| p.exists())
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| "bt_action.ps1 not found".to_string())
+}
+
 pub fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, String)>, Box<dyn std::error::Error>> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
 

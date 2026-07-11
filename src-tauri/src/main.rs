@@ -7,6 +7,7 @@ mod config;
 mod device;
 mod device_data;
 mod popup;
+mod process;
 mod state;
 mod tray;
 mod windows;
