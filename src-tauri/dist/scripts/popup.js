@@ -5,17 +5,23 @@ let deviceNames = {};
 let deviceGroups = {};
 let useSystemBt = false;
 
-function showToast(msg) {
+function showToast(msg, onClick) {
   let el = document.querySelector(".toast");
   if (!el) {
     el = document.createElement("div");
     el.className = "toast";
     document.body.appendChild(el);
   }
-  el.textContent = msg;
+  el.innerHTML = msg;
   el.classList.add("show");
+  el.style.cursor = onClick ? "pointer" : "default";
+  el.onclick = onClick || null;
   clearTimeout(el._timer);
-  el._timer = setTimeout(() => el.classList.remove("show"), 2000);
+  el._timer = setTimeout(() => {
+    el.classList.remove("show");
+    el.onclick = null;
+    el.style.cursor = "default";
+  }, 3000);
 }
 
 async function loadDevices() {
@@ -260,7 +266,11 @@ function renderDevices() {
           }
 
           if (!statusChanged) {
-            showToast(isConnect ? "连接失败" : "断开失败");
+            const invoke = getInvoke();
+            showToast(
+              `${isConnect ? "连接失败" : "断开失败"}，点击这里跳转到系统设置进行修改`,
+              invoke ? () => invoke("open_bt_settings") : null
+            );
           }
         });
         actionsEl.appendChild(connectBtn);

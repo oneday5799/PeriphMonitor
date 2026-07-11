@@ -367,7 +367,7 @@ body {
   z-index: 3000;
   opacity: 0;
   transition: opacity 0.3s;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .toast.show {
