@@ -98,6 +98,17 @@ src-tauri/
 
 当前版本仅支持在项目中显示 2.4G 无线设备（按设备类型归入对应分组），**暂不支持获取 2.4G 设备的电量信息**。
 
+#### 预设设备类型
+
+支持的设备类型及其对应分组：
+
+| 类型 | 分组 |
+|------|------|
+| `mouse` | 输入设备 |
+| `keyboard` | 输入设备 |
+| `audio` | 音频设备 |
+| `other` | 其他设备 |
+
 #### 添加自定义 2.4G 设备
 
 可在设置页中点击"打开"按钮，直接编辑 `wireless_24g_devices.json` 文件添加自己的 2.4G 设备。VID 和 PID 信息可通过 [USB 设备查看器](https://www.codertools.net/tools/usb-device-viewer.php?lang=zh) 在线获取。
