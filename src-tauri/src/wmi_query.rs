@@ -94,6 +94,9 @@ pub fn query_devices() -> Vec<Device> {
     let mut all = vec![];
     let mut seen = HashSet::new();
 
+    // Reload 2.4G device data from file
+    crate::device_data::reload_device_data();
+
     let filter_enabled = config::with_config(|c| c.filter_enabled);
     let dedup_enabled = config::with_config(|c| c.dedup_devices);
 

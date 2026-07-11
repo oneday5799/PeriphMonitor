@@ -305,3 +305,24 @@ html, body {
 .device-item-name.hidden {
   color: #a0a0a0;
 }
+
+/* 2.4G device list button */
+.add-device-btn {
+  padding: 6px 16px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.add-device-btn:hover {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.add-device-btn:active {
+  background: #e0e0e0;
+}

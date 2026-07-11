@@ -58,6 +58,7 @@ fn main() {
             commands::check_bt_connection,
             commands::open_bt_settings,
             commands::open_url,
+            commands::open_24g_device_file,
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 use serde::Deserialize;
 
@@ -17,7 +17,7 @@ struct RawDeviceEntry {
     r#type: String,
 }
 
-static DEVICE_DATA: OnceLock<HashMap<String, HashMap<String, DeviceInfo>>> = OnceLock::new();
+static DEVICE_DATA: OnceLock<RwLock<HashMap<String, HashMap<String, DeviceInfo>>>> = OnceLock::new();
 
 fn data_file_path() -> PathBuf {
     let exe = std::env::current_exe().unwrap_or_default();
@@ -27,9 +27,9 @@ fn data_file_path() -> PathBuf {
         .join("wireless_24g_devices.json")
 }
 
-pub fn init_device_data() {
+fn load_data_from_file() -> HashMap<String, HashMap<String, DeviceInfo>> {
     let path = data_file_path();
-    let data = match std::fs::read_to_string(&path) {
+    match std::fs::read_to_string(&path) {
         Ok(content) => {
             match serde_json::from_str::<HashMap<String, HashMap<String, RawDeviceEntry>>>(&content) {
                 Ok(raw) => {
@@ -50,30 +50,43 @@ pub fn init_device_data() {
             }
         }
         Err(_) => HashMap::new(),
-    };
-    DEVICE_DATA.set(data).ok();
+    }
+}
+
+pub fn init_device_data() {
+    let data = load_data_from_file();
+    DEVICE_DATA.set(RwLock::new(data)).ok();
+}
+
+pub fn reload_device_data() {
+    if let Some(rw_lock) = DEVICE_DATA.get() {
+        let new_data = load_data_from_file();
+        if let Ok(mut data) = rw_lock.write() {
+            *data = new_data;
+        }
+    }
 }
 
 pub fn is_wireless_24g(vid: &str, pid: &str) -> bool {
-    DEVICE_DATA
-        .get()
-        .and_then(|data| data.get(vid))
+    let data = DEVICE_DATA.get().and_then(|rw_lock| rw_lock.read().ok());
+    data.as_ref()
+        .and_then(|d| d.get(vid))
         .map(|pids| pids.contains_key(pid))
         .unwrap_or(false)
 }
 
 pub fn get_device_name(vid: &str, pid: &str) -> Option<String> {
-    DEVICE_DATA
-        .get()
-        .and_then(|data| data.get(vid))
+    let data = DEVICE_DATA.get().and_then(|rw_lock| rw_lock.read().ok());
+    data.as_ref()
+        .and_then(|d| d.get(vid))
         .and_then(|pids| pids.get(pid))
         .map(|info| info.name.clone())
 }
 
 pub fn get_device_type(vid: &str, pid: &str) -> String {
-    DEVICE_DATA
-        .get()
-        .and_then(|data| data.get(vid))
+    let data = DEVICE_DATA.get().and_then(|rw_lock| rw_lock.read().ok());
+    data.as_ref()
+        .and_then(|d| d.get(vid))
         .and_then(|pids| pids.get(pid))
         .map(|info| info.device_type.clone())
         .unwrap_or_else(|| "other".to_string())

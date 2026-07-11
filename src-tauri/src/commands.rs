@@ -205,4 +205,30 @@ async fn bt_action(name: &str, action: &str) -> Result<String, String> {
     Ok(stdout.trim().to_string())
 }
 
+#[tauri::command]
+pub fn open_24g_device_file() -> Result<(), String> {
+    let path = std::env::current_exe()
+        .map_err(|e| e.to_string())?
+        .parent()
+        .ok_or("无法获取程序目录")?
+        .join("data")
+        .join("wireless_24g_devices.json");
+
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut c = std::process::Command::new("cmd");
+        c.creation_flags(CREATE_NO_WINDOW);
+        c
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = std::process::Command::new("cmd");
+
+    cmd.args(["/c", "start", "", &path.to_string_lossy()])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 

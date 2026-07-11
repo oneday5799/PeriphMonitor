@@ -71,6 +71,15 @@ async function init() {
     });
 
     loadDevicesAsync();
+
+    // Open 2.4G device list button
+    document.getElementById("btn-add-24g").addEventListener("click", async () => {
+      try {
+        await invoke("open_24g_device_file");
+      } catch (e) {
+        console.error("Failed to open file:", e);
+      }
+    });
   } catch (e) {
     console.error("Failed to load settings:", e);
   }
