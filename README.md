@@ -24,7 +24,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 ### 主要功能
 
 - 实时检测音频、USB、蓝牙、电池、显示器等设备
-- 2.4G 无线设备自动识别，按设备类型（鼠标/键盘/音频/其他）归入对应分组
+- 2.4G 无线设备自动识别，按设备类型（鼠标/键盘/音频/其他）归入对应分组（暂不支持电量）
 - 蓝牙设备显示连接/配对状态和电量百分比（BLE 设备通过 GATT Battery Service 读取）
 - 设备卡片显示连接类型标签（蓝牙/2.4G）
 - 系统托盘图标，左键弹出设备列表，右键原生菜单
@@ -34,9 +34,13 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 - 设备重命名与隐藏
 - 显示无名称蓝牙设备开关（默认关闭）
 - 使用系统蓝牙连接开关，支持跳转到 Windows 蓝牙设置页管理连接
+- 蓝牙连接失败时弹出提示，点击可跳转到系统蓝牙设置页
+- 设置页支持查看/修改 2.4G 设备列表（直接打开 JSON 文件编辑）
+- 设备按连接状态排序：已连接 > 已配对 > 未连接
 - 设置页窗口状态自动记忆
 - 开机自启动支持
 - 单实例模式，重复启动时自动聚焦已有窗口
+- 关于页面（版本信息、项目主页链接）
 
 ### 技术栈
 
@@ -58,6 +62,9 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 src-tauri/
 ├── data/
 │   └── wireless_24g_devices.json   # 2.4G 设备数据库（VID/PID → 名称/类型）
+├── scripts/
+│   ├── bt_action.ps1               # 蓝牙连接/断开 PowerShell 脚本
+│   └── BtNative.cs                 # BluetoothSetServiceState P/Invoke
 ├── src/
 │   ├── main.rs          # 应用入口，COM 初始化，Tauri 构建
 │   ├── state.rs         # 全局状态（托盘位置、动画状态、自启动）
@@ -70,21 +77,32 @@ src-tauri/
 │   ├── device_data.rs   # 2.4G 设备数据加载与查询
 │   ├── popup.rs         # 弹出窗口生命周期与动画
 │   ├── tray.rs          # 系统托盘菜单与事件
-│   └── windows.rs       # 窗口创建与 DWM 圆角
-└── dist/
-    ├── scripts/
-    │   ├── common.js    # 共享常量与工具函数
-    │   ├── popup.js     # 主窗口逻辑
-    │   └── settings.js  # 设置页逻辑
-    └── styles/
-        ├── base.css     # 基础样式
-        ├── popup.css    # 主窗口样式
-        └── settings.css # 设置页样式
+│   ├── windows.rs       # 窗口创建与 DWM 圆角
+│   └── process.rs       # 进程工具（隐藏窗口、PowerShell 调用）
+├── dist/
+│   ├── popup.html       # 主窗口
+│   ├── settings.html    # 设置页
+│   ├── about.html       # 关于页
+│   ├── scripts/
+│   │   ├── common.js    # 共享常量与工具函数
+│   │   ├── dialog.js    # 通用对话框组件
+│   │   ├── popup.js     # 主窗口逻辑
+│   │   └── settings.js  # 设置页逻辑
+│   └── styles/
+│       ├── base.css     # 基础样式
+│       ├── popup.css    # 主窗口样式
+│       └── settings.css # 设置页样式
 ```
 
-### 2.4G 设备识别
+### 2.4G 设备支持
 
-项目通过 USB VID/PID 匹配识别已知的 2.4G 无线设备，设备信息存储在 `wireless_24g_devices.json` 中：
+当前版本仅支持在项目中显示 2.4G 无线设备（按设备类型归入对应分组），**暂不支持获取 2.4G 设备的电量信息**。
+
+#### 添加自定义 2.4G 设备
+
+可在设置页中点击"打开"按钮，直接编辑 `wireless_24g_devices.json` 文件添加自己的 2.4G 设备。VID 和 PID 信息可通过 [USB 设备查看器](https://www.codertools.net/tools/usb-device-viewer.php?lang=zh) 在线获取。
+
+JSON 格式如下：
 
 ```json
 {
@@ -98,7 +116,13 @@ src-tauri/
 - `audio` → 归入"音频设备"分组
 - `other` 或空 → 归入"其他设备"分组
 
-用户可自行编辑 JSON 文件添加新设备。
+#### 无法获取 2.4GHz 设备电量信息
+
+不同的 2.4GHz 设备的通信协议不同，无法做到统一获取电量信息。如需获取设备电量，需要获取设备的 VID 和 PID，然后通过 Wireshark 和 USBPcap 第三方软件嗅探设备电量发生变化时发送的数据包，并解析数据包，获取电量信息，极其复杂麻烦。
+
+如需参考实现方案，可查看 [2.4G 无线设备电量获取项目](https://github.com/Rainbow132/2.4G-wireless-device-battery-level-acquisition)。
+
+**欢迎有能力的开发者贡献代码或提供思路，帮助扩展对这些设备的支持。**
 
 ### 设备过滤机制
 
@@ -130,7 +154,7 @@ git push origin v1.0.0-beta.1
 ```
 
 工作流会自动：
-- 从 tag 提取版本号并更新配置文件
+- 从 tag 提取版本号并更新配置文件（tauri.conf.json、Cargo.toml、package.json、about.html）
 - 并行构建 x64 和 ARM64 安装包
 - 创建 GitHub Release（tag 名含 `-` 时标记为 Pre-release）
 
