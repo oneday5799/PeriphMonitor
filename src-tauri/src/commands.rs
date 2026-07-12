@@ -130,11 +130,20 @@ pub fn open_24g_device_file() -> Result<(), String> {
     process::open_with_system(&path.to_string_lossy())
 }
 
+const TRAY_DEVICE_LIMIT: usize = 4;
+
 #[tauri::command]
-pub fn toggle_device_tray(app: tauri::AppHandle, name: String) {
+pub fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    let already_added = config::with_config(|c| c.tray_devices.contains(&name));
+    if !already_added {
+        let count = config::with_config(|c| c.tray_devices.len());
+        if count >= TRAY_DEVICE_LIMIT {
+            return Err(format!("托盘最多添加 {} 个设备", TRAY_DEVICE_LIMIT));
+        }
+    }
     config::with_config_mut(|c| toggle_vec_item(&mut c.tray_devices, &name));
     let _ = app.emit("tray-devices-changed", ());
-    let _ = app.emit("config-changed", ());
+    Ok(())
 }
 
 #[tauri::command]

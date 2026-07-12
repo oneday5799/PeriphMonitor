@@ -344,10 +344,16 @@ function showContextMenu(x, y, dev) {
   trayItem.className = "context-menu-item";
   trayItem.textContent = isTray ? "从托盘移除" : "添加到托盘";
   trayItem.addEventListener("click", async () => {
-    await invoke("toggle_device_tray", { name: dev.name });
-    const config = await invoke("get_config");
-    trayDevices = config.tray_devices || [];
-    renderDevices();
+    try {
+      await invoke("toggle_device_tray", { name: dev.name });
+      if (trayDevices.includes(dev.name)) {
+        trayDevices = trayDevices.filter(n => n !== dev.name);
+      } else {
+        trayDevices.push(dev.name);
+      }
+    } catch (e) {
+      showToast(e);
+    }
     hideContextMenu();
   });
   menu.appendChild(trayItem);
