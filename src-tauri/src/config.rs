@@ -50,7 +50,7 @@ fn config_path() -> PathBuf {
         .join("config.toml")
 }
 
-pub fn load_config() -> Config {
+fn load_config() -> Config {
     let path = config_path();
     match std::fs::read_to_string(&path) {
         Ok(content) => toml::from_str(&content).unwrap_or_default(),
@@ -58,7 +58,7 @@ pub fn load_config() -> Config {
     }
 }
 
-pub fn save_config(config: &Config) {
+fn save_config(config: &Config) {
     let path = config_path();
     if let Ok(content) = toml::to_string_pretty(config) {
         use std::io::Write;
@@ -77,7 +77,7 @@ pub fn with_config<F, R>(f: F) -> R
 where
     F: FnOnce(&Config) -> R,
 {
-    let guard = CONFIG.get().expect("Config not initialized").lock().unwrap();
+    let guard = CONFIG.get().expect("Config not initialized").lock().unwrap_or_else(|e| e.into_inner());
     f(&guard)
 }
 
@@ -85,7 +85,7 @@ pub fn with_config_mut<F, R>(f: F) -> R
 where
     F: FnOnce(&mut Config) -> R,
 {
-    let mut guard = CONFIG.get().expect("Config not initialized").lock().unwrap();
+    let mut guard = CONFIG.get().expect("Config not initialized").lock().unwrap_or_else(|e| e.into_inner());
     let result = f(&mut guard);
     save_config(&guard);
     result

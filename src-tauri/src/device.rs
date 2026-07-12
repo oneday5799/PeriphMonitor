@@ -29,7 +29,7 @@ pub struct Device {
 // 设备ID存储 — 用于蓝牙连接/断开操作
 static DEVICE_IDS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
 
-pub fn get_device_ids() -> &'static Mutex<HashMap<String, String>> {
+fn get_device_ids() -> &'static Mutex<HashMap<String, String>> {
     DEVICE_IDS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 

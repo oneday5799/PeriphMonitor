@@ -8,23 +8,43 @@ use crate::process;
 pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
     let device_id = device::get_device_id_by_name(name)
         .ok_or_else(|| {
-            eprintln!("[bt] Device '{}' not found in device_id map", name);
+            let msg = format!("[bt] Device '{}' not found in device_id map", name);
+            crate::process::append_log(&msg);
+            eprintln!("{}", msg);
             format!("Device '{}' not found", name)
         })?;
 
     let mac = device_id.rsplit('-').next().unwrap_or("").to_string();
-    eprintln!("[bt] {} device='{}' mac='{}' device_id='{}'", action.to_uppercase(), name, mac, device_id);
+    let header = format!("[bt] {} device='{}' mac='{}' device_id='{}'", action.to_uppercase(), name, mac, device_id);
+    eprintln!("{}", header);
+    crate::process::append_log(&header);
 
     let script_path = find_bt_script()?;
-    eprintln!("[bt] script: {}", script_path);
+    crate::process::append_log(&format!("[bt] script: {}", script_path));
+
+    let out_file = std::env::temp_dir().join("bt_action_out.txt");
+    let out_arg = out_file.to_string_lossy().to_string();
 
     let result = process::run_powershell_script(
         &script_path,
-        &["-Mac", &mac, "-Action", action],
+        &["-Mac", &mac, "-Action", action, "-OutFile", &out_arg],
     )?;
 
-    eprintln!("[bt] result: {}", result);
-    Ok(result)
+    let script_output = std::fs::read_to_string(&out_file)
+        .unwrap_or_else(|e| {
+            crate::process::append_log(&format!("[bt] READ_OUTFILE_FAILED: {}", e));
+            String::new()
+        });
+    let _ = std::fs::remove_file(&out_file);
+
+    let combined = if script_output.is_empty() {
+        result
+    } else {
+        format!("{}\n{}", result, script_output.trim())
+    };
+
+    crate::process::append_log(&format!("[bt] result: {}", combined));
+    Ok(combined)
 }
 
 fn find_bt_script() -> Result<String, String> {
@@ -47,46 +67,61 @@ fn find_bt_script() -> Result<String, String> {
         .ok_or_else(|| "bt_action.ps1 not found".to_string())
 }
 
-pub fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, String)>, Box<dyn std::error::Error>> {
+/// Try to extract a BluetoothDevice from a DeviceInformation entry
+fn classic_device_from_info(device_info: &DeviceInformation) -> Option<(String, bool, String)> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
 
+    let device_id = device_info.Id().ok()?;
+    let future = BluetoothDevice::FromIdAsync(&device_id).ok()?;
+    let device = future.get().ok()?;
+    let name = device.Name().ok()?.to_string();
+    let connected = device.ConnectionStatus().ok()? == BluetoothConnectionStatus::Connected;
+    Some((name, connected, device_id.to_string()))
+}
+
+/// Try to extract a BluetoothLEDevice from a DeviceInformation entry
+fn ble_device_from_info(device_info: &DeviceInformation) -> Option<(String, bool, String)> {
+    use windows::Devices::Bluetooth::BluetoothConnectionStatus;
+
+    let device_id = device_info.Id().ok()?;
+    let future = BluetoothLEDevice::FromIdAsync(&device_id).ok()?;
+    let device = future.get().ok()?;
+    let name = device.Name().ok()?.to_string();
+    let connected = device.ConnectionStatus().ok()? == BluetoothConnectionStatus::Connected;
+    Some((name, connected, device_id.to_string()))
+}
+
+pub fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, String)>, Box<dyn std::error::Error>> {
     let mut result = Vec::new();
 
+    // Classic Bluetooth devices
     let btc_selector = BluetoothDevice::GetDeviceSelectorFromPairingState(true)?;
-    let btc_op = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector)?;
-    let btc_devices_info = btc_op.get()?;
+    let btc_devices_info = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector)?.get()?;
     for device_info in btc_devices_info.into_iter() {
-        if let Ok(device_id) = device_info.Id() {
-            if let Ok(future) = BluetoothDevice::FromIdAsync(&device_id) {
-                if let Ok(device) = future.get() {
-                    let name = device.Name()?.to_string();
-                    let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
-                    let battery = read_btc_battery_from_device_id(&device_id.to_string());
-                    let device_id_str = device_id.to_string();
-                    result.push((name, connected, battery, device_id_str));
-                }
-            }
+        if let Some((name, connected, device_id)) = classic_device_from_info(&device_info) {
+            let battery = read_btc_battery_from_device_id(&device_id);
+            result.push((name, connected, battery, device_id));
         }
     }
 
+    // BLE devices
     let ble_selector = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true)?;
-    let ble_op = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector)?;
-    let ble_devices_info = ble_op.get()?;
+    let ble_devices_info = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector)?.get()?;
     for device_info in ble_devices_info.into_iter() {
-        if let Ok(device_id) = device_info.Id() {
-            if let Ok(future) = BluetoothLEDevice::FromIdAsync(&device_id) {
-                if let Ok(device) = future.get() {
-                    let name = device.Name()?.to_string();
-                    let connected = device.ConnectionStatus()? == BluetoothConnectionStatus::Connected;
-                    let battery = read_ble_battery(&device);
-                    let device_id_str = device_id.to_string();
-                    result.push((name, connected, battery, device_id_str));
-                }
-            }
+        if let Some((name, connected, device_id)) = ble_device_from_info(&device_info) {
+            let battery = read_ble_battery_from_id(&device_id);
+            result.push((name, connected, battery, device_id));
         }
     }
 
     Ok(result)
+}
+
+fn read_ble_battery_from_id(device_id: &str) -> Option<u8> {
+    let hstr = windows::core::HSTRING::from(device_id);
+    let future = BluetoothLEDevice::FromIdAsync(&hstr).ok()?;
+    let device = future.get().ok()?;
+    read_ble_battery(&device)
 }
 
 fn read_ble_battery(ble_device: &BluetoothLEDevice) -> Option<u8> {
@@ -112,55 +147,10 @@ fn read_ble_battery(ble_device: &BluetoothLEDevice) -> Option<u8> {
 
 /// Check connection status of a single Bluetooth device by name
 pub fn check_device_connection(name: &str) -> Option<bool> {
-    use windows::Devices::Bluetooth::BluetoothConnectionStatus;
-
-    // Check classic Bluetooth devices
-    if let Ok(btc_selector) = BluetoothDevice::GetDeviceSelectorFromPairingState(true) {
-        if let Ok(btc_op) = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector) {
-            if let Ok(btc_devices_info) = btc_op.get() {
-                for device_info in btc_devices_info.into_iter() {
-                    if let Ok(device_id) = device_info.Id() {
-                        if let Ok(future) = BluetoothDevice::FromIdAsync(&device_id) {
-                            if let Ok(device) = future.get() {
-                                if let Ok(device_name) = device.Name() {
-                                    if device_name.to_string() == name {
-                                        if let Ok(status) = device.ConnectionStatus() {
-                                            return Some(status == BluetoothConnectionStatus::Connected);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Check BLE devices
-    if let Ok(ble_selector) = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true) {
-        if let Ok(ble_op) = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector) {
-            if let Ok(ble_devices_info) = ble_op.get() {
-                for device_info in ble_devices_info.into_iter() {
-                    if let Ok(device_id) = device_info.Id() {
-                        if let Ok(future) = BluetoothLEDevice::FromIdAsync(&device_id) {
-                            if let Ok(device) = future.get() {
-                                if let Ok(device_name) = device.Name() {
-                                    if device_name.to_string() == name {
-                                        if let Ok(status) = device.ConnectionStatus() {
-                                            return Some(status == BluetoothConnectionStatus::Connected);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    None
+    find_paired_bluetooth_devices().ok()?
+        .into_iter()
+        .find(|(n, _, _, _)| n == name)
+        .map(|(_, connected, _, _)| connected)
 }
 
 fn read_btc_battery_from_device_id(device_id: &str) -> Option<u8> {
@@ -176,7 +166,6 @@ fn read_btc_battery_from_device_id(device_id: &str) -> Option<u8> {
         class_guid, filter,
     ).ok()?;
 
-    // DEVPKEY_BLUETOOTH_BATTERY = {104EA319-6EE2-4701-BD47-8DDBF425BBE5}, pid=2
     let battery_key = windows_pnp::PnpDevicePropertyKey {
         fmtid: windows_pnp_uuid::Uuid::from_u128(0x104EA319_6EE2_4701_BD47_8DDBF425BBE5),
         pid: 2,

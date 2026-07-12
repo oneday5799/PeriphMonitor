@@ -1,9 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![warn(unused_imports, dead_code)]
 
 mod bluetooth;
 mod classify;
 mod commands;
 mod config;
+mod dedup;
 mod device;
 mod device_data;
 mod popup;
@@ -28,6 +30,9 @@ fn main() {
     config::init_config();
     device_data::init_device_data();
     tray::init_auto_start();
+
+    // 启动时清空日志
+    let _ = std::fs::remove_file("debug.log");
 
     let is_autostart = std::env::args().any(|a| a == "--autostart");
 

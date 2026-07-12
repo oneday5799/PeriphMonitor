@@ -56,29 +56,28 @@ pub fn classify_bluetooth(name: &str) -> Option<DevType> {
     }
     let lower = name.to_lowercase();
     if is_audio(&lower) { return Some(DevType::Audio); }
-    if is_usb(name, "") { return Some(DevType::Usb); }
+    if is_usb(&lower, "") { return Some(DevType::Usb); }
     Some(DevType::Other)
 }
 
-pub fn is_wireless_24g_by_vid_pid(pnp_id: &str) -> bool {
+pub(crate) fn is_wireless_24g_by_vid_pid(pnp_id: &str) -> bool {
     match device_data::extract_vid_pid(pnp_id) {
         Some((vid, pid)) => device_data::is_wireless_24g(&vid, &pid),
         None => false,
     }
 }
 
-pub fn is_audio(n: &str) -> bool {
-    let l = n.to_lowercase();
+fn is_audio(lower: &str) -> bool {
     [
         "headphone", "headset", "earphone", "earbuds", "speaker", "耳机", "音箱", "扬声器",
         "音响", "airpods", "hifi", "dac", "amp", "glasses", "眼镜",
     ]
     .iter()
-    .any(|k| l.contains(k))
+    .any(|k| lower.contains(k))
 }
 
-pub fn is_usb(n: &str, c: &str) -> bool {
-    let t = format!("{} {}", n, c).to_lowercase();
+fn is_usb(lower_name: &str, caption: &str) -> bool {
+    let combined = format!("{} {}", lower_name, caption).to_lowercase();
     [
         "mouse", "keyboard", "controller", "gamepad", "鼠标", "键盘", "手柄", "xbox", "webcam",
         "logitech", "razer", "corsair", "keychron", "orochi", "deathadder", "viper",
@@ -86,7 +85,7 @@ pub fn is_usb(n: &str, c: &str) -> bool {
         "steelseries", "hyperx", "coolermaster", "roccat", "zte", "雷蛇", "罗技",
     ]
     .iter()
-    .any(|k| t.contains(k))
+    .any(|k| combined.contains(k))
 }
 
 pub fn is_bt_service(pnp_id: &str) -> bool {

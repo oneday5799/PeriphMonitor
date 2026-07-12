@@ -2,7 +2,7 @@ use crate::config::{self, Config};
 use crate::device::{self, Device};
 use crate::process;
 use crate::wmi_query::query_devices;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[tauri::command(async)]
 pub async fn get_devices() -> Vec<Device> {
@@ -40,8 +40,6 @@ pub fn update_config(app: tauri::AppHandle, new_config: Config) {
     });
     let _ = app.emit("config-changed", ());
 }
-
-use tauri::Emitter;
 
 #[tauri::command]
 pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
@@ -109,7 +107,6 @@ pub fn toggle_group_hidden(app: tauri::AppHandle, group: String) {
 
 #[tauri::command(async)]
 pub async fn disconnect_bluetooth_device(name: String) -> Result<String, String> {
-    let name = name.clone();
     tokio::task::spawn_blocking(move || crate::bluetooth::bt_action(&name, "disconnect"))
         .await
         .map_err(|e| e.to_string())?
@@ -117,7 +114,6 @@ pub async fn disconnect_bluetooth_device(name: String) -> Result<String, String>
 
 #[tauri::command(async)]
 pub async fn connect_bluetooth_device(name: String) -> Result<String, String> {
-    let name = name.clone();
     tokio::task::spawn_blocking(move || crate::bluetooth::bt_action(&name, "connect"))
         .await
         .map_err(|e| e.to_string())?
