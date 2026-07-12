@@ -76,8 +76,11 @@ fn find_bt_script() -> Result<String, String> {
         .ok_or_else(|| "bt_action.ps1 not found".to_string())
 }
 
+/// 蓝牙设备信息: (名称, 已连接, 设备ID)
+type BtDeviceInfo = (String, bool, String);
+
 /// 从 DeviceInformation 提取 Classic BT 设备信息
-fn classic_device_from_info(device_info: &DeviceInformation) -> Option<(String, bool, String)> {
+fn classic_device_from_info(device_info: &DeviceInformation) -> Option<BtDeviceInfo> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
     let device_id = device_info.Id().ok()?;
     let device = BluetoothDevice::FromIdAsync(&device_id).ok()?.get().ok()?;
@@ -87,7 +90,7 @@ fn classic_device_from_info(device_info: &DeviceInformation) -> Option<(String, 
 }
 
 /// 从 DeviceInformation 提取 BLE 设备信息
-fn ble_device_from_info(device_info: &DeviceInformation) -> Option<(String, bool, String)> {
+fn ble_device_from_info(device_info: &DeviceInformation) -> Option<BtDeviceInfo> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
     let device_id = device_info.Id().ok()?;
     let device = BluetoothLEDevice::FromIdAsync(&device_id).ok()?.get().ok()?;

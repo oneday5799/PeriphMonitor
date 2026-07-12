@@ -62,13 +62,11 @@ pub fn try_insert(
     let has_conn_type = is_bluetooth || is_wireless_24g;
 
     // If this device has no connection type, check if one with a type already exists
-    if dedup && !has_conn_type {
-        if devices.iter().any(|d| {
-            let ecn = core_name(&d.name);
-            (ecn == cn || d.name == cn) && (d.is_bluetooth || d.is_wireless_24g)
-        }) {
-            return; // Skip: a device with connection type already exists
-        }
+    if dedup && !has_conn_type && devices.iter().any(|d| {
+        let ecn = core_name(&d.name);
+        (ecn == cn || d.name == cn) && (d.is_bluetooth || d.is_wireless_24g)
+    }) {
+        return; // Skip: a device with connection type already exists
     }
 
     // If this device has a connection type, remove any plain (no-type) entry with same name

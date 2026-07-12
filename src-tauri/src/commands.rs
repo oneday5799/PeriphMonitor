@@ -15,7 +15,7 @@ fn toggle_vec_item(vec: &mut Vec<String>, item: &str) {
 
 #[tauri::command(async)]
 pub async fn get_devices() -> Vec<Device> {
-    let devices = tokio::task::spawn_blocking(|| query_devices())
+    let devices = tokio::task::spawn_blocking(query_devices)
         .await
         .unwrap_or_default();
     device::store_device_ids(&devices);
