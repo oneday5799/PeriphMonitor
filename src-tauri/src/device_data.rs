@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::{OnceLock, RwLock};
 
 use serde::Deserialize;
@@ -19,12 +18,8 @@ struct RawDeviceEntry {
 
 static DEVICE_DATA: OnceLock<RwLock<HashMap<String, HashMap<String, DeviceInfo>>>> = OnceLock::new();
 
-fn data_file_path() -> PathBuf {
-    let exe = std::env::current_exe().unwrap_or_default();
-    exe.parent()
-        .unwrap_or(&PathBuf::from("."))
-        .join("data")
-        .join("wireless_24g_devices.json")
+fn data_file_path() -> std::path::PathBuf {
+    crate::process::exe_dir().join("data").join("wireless_24g_devices.json")
 }
 
 fn load_data_from_file() -> HashMap<String, HashMap<String, DeviceInfo>> {

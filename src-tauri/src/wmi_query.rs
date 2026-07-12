@@ -10,6 +10,14 @@ use crate::device_data;
 use crate::dedup::{core_name, try_insert};
 use crate::bluetooth::find_paired_bluetooth_devices;
 
+/// 从 WMI 行中提取字符串字段
+fn wmi_str(row: &HashMap<String, wmi::Variant>, key: &str) -> String {
+    match row.get(key) {
+        Some(wmi::Variant::String(s)) => s.clone(),
+        _ => String::new(),
+    }
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(rename = "Win32_Battery")]
 struct BatteryDevice {
@@ -79,22 +87,10 @@ fn query_pnp_devices(
             Some(wmi::Variant::String(s)) => s.clone(),
             _ => continue,
         };
-        let devid = match row.get("PNPDeviceID") {
-            Some(wmi::Variant::String(s)) => s.clone(),
-            _ => String::new(),
-        };
-        let cap = match row.get("Caption") {
-            Some(wmi::Variant::String(s)) => s.clone(),
-            _ => String::new(),
-        };
-        let pnp = match row.get("PNPClass") {
-            Some(wmi::Variant::String(s)) => s.clone(),
-            _ => String::new(),
-        };
-        let status_str = match row.get("Status") {
-            Some(wmi::Variant::String(s)) => s.clone(),
-            _ => String::new(),
-        };
+        let devid = wmi_str(&row, "PNPDeviceID");
+        let cap = wmi_str(&row, "Caption");
+        let pnp = wmi_str(&row, "PNPClass");
+        let status_str = wmi_str(&row, "Status");
 
         if !PNPCLASS_WHITELIST.iter().any(|c| pnp.eq_ignore_ascii_case(c)) {
             continue;

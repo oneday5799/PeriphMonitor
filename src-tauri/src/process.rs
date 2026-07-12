@@ -1,4 +1,13 @@
+use std::path::PathBuf;
 use std::process::Command;
+
+/// 获取 exe 所在目录
+pub fn exe_dir() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| PathBuf::from("."))
+}
 
 /// 创建 Windows 隐藏窗口命令
 #[cfg(target_os = "windows")]
@@ -20,10 +29,7 @@ pub fn append_log(msg: &str) {
     use std::io::Write;
     let timestamp = chrono_str();
     let line = format!("[{}]{}\n", timestamp, msg);
-    let log_path = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.join("debug.log")))
-        .unwrap_or_else(|| "debug.log".into());
+    let log_path = exe_dir().join("debug.log");
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true).append(true)
         .open(&log_path)
@@ -100,7 +106,7 @@ pub fn run_powershell_script(script: &str, args: &[&str]) -> Result<String, Stri
             Ok(None) => {
                 if start.elapsed() > timeout {
                     let _ = child.kill();
-                    let msg = format!("[bt] TIMEOUT after 30s, killed pid={}", child_id);
+                    let msg = format!("[bt] TIMEOUT after 60s, killed pid={}", child_id);
                     crate::process::append_log(&msg);
                     return Err(msg);
                 }

@@ -4,6 +4,15 @@ use crate::process;
 use crate::wmi_query::query_devices;
 use tauri::{Emitter, Manager};
 
+/// 切换 Vec 中某个元素的存在/不存在
+fn toggle_vec_item(vec: &mut Vec<String>, item: &str) {
+    if let Some(pos) = vec.iter().position(|v| v == item) {
+        vec.remove(pos);
+    } else {
+        vec.push(item.to_string());
+    }
+}
+
 #[tauri::command(async)]
 pub async fn get_devices() -> Vec<Device> {
     let devices = tokio::task::spawn_blocking(|| query_devices())
@@ -43,13 +52,7 @@ pub fn update_config(app: tauri::AppHandle, new_config: Config) {
 
 #[tauri::command]
 pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
-    config::with_config_mut(|c| {
-        if let Some(pos) = c.hidden_devices.iter().position(|h| h == &name) {
-            c.hidden_devices.remove(pos);
-        } else {
-            c.hidden_devices.push(name);
-        }
-    });
+    config::with_config_mut(|c| toggle_vec_item(&mut c.hidden_devices, &name));
     let _ = app.emit("config-changed", ());
 }
 
@@ -95,13 +98,7 @@ pub fn change_device_group(app: tauri::AppHandle, name: String, group: String) {
 
 #[tauri::command]
 pub fn toggle_group_hidden(app: tauri::AppHandle, group: String) {
-    config::with_config_mut(|c| {
-        if let Some(pos) = c.hidden_groups.iter().position(|g| g == &group) {
-            c.hidden_groups.remove(pos);
-        } else {
-            c.hidden_groups.push(group);
-        }
-    });
+    config::with_config_mut(|c| toggle_vec_item(&mut c.hidden_groups, &group));
     let _ = app.emit("config-changed", ());
 }
 
@@ -129,11 +126,6 @@ pub async fn check_bt_connection(name: String) -> Result<Option<bool>, String> {
 
 #[tauri::command]
 pub fn open_24g_device_file() -> Result<(), String> {
-    let path = std::env::current_exe()
-        .map_err(|e| e.to_string())?
-        .parent()
-        .ok_or("无法获取程序目录")?
-        .join("data")
-        .join("wireless_24g_devices.json");
+    let path = crate::process::exe_dir().join("data").join("wireless_24g_devices.json");
     process::open_with_system(&path.to_string_lossy())
 }

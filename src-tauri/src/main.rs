@@ -32,10 +32,7 @@ fn main() {
     tray::init_auto_start();
 
     // 启动时清空日志（基于 exe 所在目录）
-    let log_path = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.join("debug.log")))
-        .unwrap_or_else(|| "debug.log".into());
+    let log_path = process::exe_dir().join("debug.log");
     let _ = std::fs::remove_file(&log_path);
 
     let is_autostart = std::env::args().any(|a| a == "--autostart");

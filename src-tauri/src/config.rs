@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::sync::Mutex;
 
@@ -43,11 +42,8 @@ impl Config {
 
 static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
 
-fn config_path() -> PathBuf {
-    let exe = std::env::current_exe().unwrap_or_default();
-    exe.parent()
-        .unwrap_or(&PathBuf::from("."))
-        .join("config.toml")
+fn config_path() -> std::path::PathBuf {
+    crate::process::exe_dir().join("config.toml")
 }
 
 fn load_config() -> Config {

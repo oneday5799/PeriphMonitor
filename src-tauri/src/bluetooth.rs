@@ -64,18 +64,11 @@ pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
 }
 
 fn find_bt_script() -> Result<String, String> {
+    let exe_dir = crate::process::exe_dir();
     let candidates = [
-        std::path::PathBuf::from("scripts/bt_action.ps1"),
-        std::env::current_dir().unwrap_or_default().join("scripts/bt_action.ps1"),
-        std::env::current_exe().ok()
-            .and_then(|p| p.parent().map(|p| p.join("scripts/bt_action.ps1")))
-            .unwrap_or_default(),
-        std::env::current_exe().ok()
-            .and_then(|p| p.parent().and_then(|p| p.parent()).map(|p| p.join("src-tauri/scripts/bt_action.ps1")))
-            .unwrap_or_default(),
-        std::env::current_exe().ok()
-            .and_then(|p| p.parent().and_then(|p| p.parent().and_then(|p| p.parent())).map(|p| p.join("src-tauri/scripts/bt_action.ps1")))
-            .unwrap_or_default(),
+        exe_dir.join("scripts/bt_action.ps1"),
+        exe_dir.parent().map(|p| p.join("src-tauri/scripts/bt_action.ps1")).unwrap_or_default(),
+        exe_dir.parent().and_then(|p| p.parent()).map(|p| p.join("src-tauri/scripts/bt_action.ps1")).unwrap_or_default(),
     ];
     candidates.iter()
         .find(|p| p.exists())
@@ -83,25 +76,21 @@ fn find_bt_script() -> Result<String, String> {
         .ok_or_else(|| "bt_action.ps1 not found".to_string())
 }
 
-/// Try to extract a BluetoothDevice from a DeviceInformation entry
+/// 从 DeviceInformation 提取 Classic BT 设备信息
 fn classic_device_from_info(device_info: &DeviceInformation) -> Option<(String, bool, String)> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
-
     let device_id = device_info.Id().ok()?;
-    let future = BluetoothDevice::FromIdAsync(&device_id).ok()?;
-    let device = future.get().ok()?;
+    let device = BluetoothDevice::FromIdAsync(&device_id).ok()?.get().ok()?;
     let name = device.Name().ok()?.to_string();
     let connected = device.ConnectionStatus().ok()? == BluetoothConnectionStatus::Connected;
     Some((name, connected, device_id.to_string()))
 }
 
-/// Try to extract a BluetoothLEDevice from a DeviceInformation entry
+/// 从 DeviceInformation 提取 BLE 设备信息
 fn ble_device_from_info(device_info: &DeviceInformation) -> Option<(String, bool, String)> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
-
     let device_id = device_info.Id().ok()?;
-    let future = BluetoothLEDevice::FromIdAsync(&device_id).ok()?;
-    let device = future.get().ok()?;
+    let device = BluetoothLEDevice::FromIdAsync(&device_id).ok()?.get().ok()?;
     let name = device.Name().ok()?.to_string();
     let connected = device.ConnectionStatus().ok()? == BluetoothConnectionStatus::Connected;
     Some((name, connected, device_id.to_string()))

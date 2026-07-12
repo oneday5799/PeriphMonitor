@@ -121,17 +121,19 @@ fn create(app: &tauri::AppHandle, target_x: f64, target_y: f64) {
     }
 }
 
-fn animate_open(window: &tauri::WebviewWindow, x: f64, start_y: f64, end_y: f64) {
-    let duration_ms = 250u64;
-    let frames = 20;
+/// 通用滑动动画
+fn animate_slide(window: &tauri::WebviewWindow, x: f64, from_y: f64, to_y: f64, duration_ms: u64, frames: u64) {
     let step_ms = duration_ms / frames;
     for i in 0..=frames {
         let t = i as f64 / frames as f64;
-        let eased = cubic_bezier(t);
-        let y = start_y + (end_y - start_y) * eased;
+        let y = from_y + (to_y - from_y) * cubic_bezier(t);
         let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
         std::thread::sleep(std::time::Duration::from_millis(step_ms));
     }
+}
+
+fn animate_open(window: &tauri::WebviewWindow, x: f64, start_y: f64, end_y: f64) {
+    animate_slide(window, x, start_y, end_y, 250, 20);
     if let Some(pos) = POPUP_POS.get() {
         *pos.lock().unwrap() = (x, end_y);
     }
@@ -140,15 +142,6 @@ fn animate_open(window: &tauri::WebviewWindow, x: f64, start_y: f64, end_y: f64)
 }
 
 fn animate_close(window: &tauri::WebviewWindow, x: f64, start_y: f64, end_y: f64) {
-    let duration_ms = 200u64;
-    let frames = 16;
-    let step_ms = duration_ms / frames;
-    for i in 0..=frames {
-        let t = i as f64 / frames as f64;
-        let eased = cubic_bezier(t);
-        let y = start_y + (end_y - start_y) * eased;
-        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
-        std::thread::sleep(std::time::Duration::from_millis(step_ms));
-    }
+    animate_slide(window, x, start_y, end_y, 200, 16);
     let _ = window.hide();
 }

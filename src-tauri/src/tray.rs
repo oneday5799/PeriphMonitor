@@ -107,7 +107,6 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         Mutex::new((screen_w - 300.0, screen_h - 50.0))
     });
 
-    let _app_handle = app.handle().clone();
     app.listen("config-changed", move |_| {
         let new_auto = config::with_config(|c| c.auto_start);
         AUTO_START.store(new_auto, Ordering::Relaxed);
