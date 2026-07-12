@@ -70,8 +70,8 @@ pub fn run_powershell_script(script: &str, args: &[&str]) -> Result<String, Stri
     let child_id = child.id();
     crate::process::append_log(&format!("[bt] CHILD_PID={}", child_id));
 
-    // 超时 30 秒
-    let timeout = std::time::Duration::from_secs(30);
+    // 超时 60 秒
+    let timeout = std::time::Duration::from_secs(60);
     let start = std::time::Instant::now();
 
     loop {

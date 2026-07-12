@@ -44,6 +44,15 @@ pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
     };
 
     crate::process::append_log(&format!("[bt] result: {}", combined));
+
+    // 检测设备未找到或蓝牙适配器异常
+    if combined.contains("NOT_FOUND") {
+        return Err("设备未找到".to_string());
+    }
+    if combined.contains("NO_RADIO") {
+        return Err("未检测到蓝牙适配器".to_string());
+    }
+
     Ok(combined)
 }
 

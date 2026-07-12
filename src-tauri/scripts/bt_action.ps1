@@ -111,6 +111,7 @@ function Invoke-BtAction {
         }
         Write-Log "DISABLED:$disabled/$($targetSvcs.Count)"
     } elseif ($DoAction -eq "connect") {
+        # Disable all services first
         $disabled = 0
         foreach ($svc in $targetSvcs) {
             $r = [BtNative]::BluetoothSetServiceState($Radio, [ref]$deviceInfo, [ref]$svc, $DISABLE)
@@ -118,25 +119,16 @@ function Invoke-BtAction {
         }
         Write-Log "PRE_DISABLE:$disabled/$($targetSvcs.Count)"
 
-        Start-Sleep -Milliseconds 500
+        # Wait for Bluetooth stack to disconnect
+        Start-Sleep -Milliseconds 1000
 
+        # Enable all services
         $enabled = 0
         foreach ($svc in $targetSvcs) {
-            $ok = $false
-            for ($retry = 0; $retry -lt $MAX_RETRY; $retry++) {
-                $r = [BtNative]::BluetoothSetServiceState($Radio, [ref]$deviceInfo, [ref]$svc, $ENABLE)
-                Write-Log "EN:$svc -> $r (attempt $($retry+1))"
-                if ($r -eq 0) {
-                    $ok = $true
-                    $enabled++
-                    Start-Sleep -Milliseconds 200
-                    break
-                }
-                Start-Sleep -Milliseconds 300
-            }
-            if (-not $ok) {
-                Write-Log "EN_FAILED:$svc after $MAX_RETRY attempts"
-            }
+            $r = [BtNative]::BluetoothSetServiceState($Radio, [ref]$deviceInfo, [ref]$svc, $ENABLE)
+            Write-Log "EN:$svc -> $r"
+            if ($r -eq 0) { $enabled++ }
+            Start-Sleep -Milliseconds 100
         }
         Write-Log "ENABLED:$enabled/$($targetSvcs.Count)"
     }
