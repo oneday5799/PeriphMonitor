@@ -26,6 +26,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 - 实时检测音频、USB、蓝牙、电池、显示器等设备
 - 2.4G 无线设备自动识别，按设备类型（鼠标/键盘/音频/其他）归入对应分组（暂不支持电量）
 - 蓝牙设备显示连接/配对状态和电量百分比（BLE 设备通过 GATT Battery Service 读取）
+- 蓝牙操作全局锁，防止并发连接/断开干扰适配器状态
 - 设备卡片显示连接类型标签（蓝牙/2.4G）
 - 系统托盘图标，左键弹出设备列表，右键原生菜单
 - 设备分组管理，支持自定义分组和分组可见性控制
@@ -160,8 +161,8 @@ npm run tauri dev
 推送 `v*` 格式的 tag 时自动触发 GitHub Actions 构建：
 
 ```bash
-git tag v1.0.0-beta.1
-git push origin v1.0.0-beta.1
+git tag v1.0.0-beta.4
+git push origin v1.0.0-beta.4
 ```
 
 工作流会自动：
