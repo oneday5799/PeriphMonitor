@@ -1,11 +1,17 @@
+use std::sync::Mutex;
 use windows::Devices::Bluetooth::{BluetoothDevice, BluetoothLEDevice};
 use windows::Devices::Enumeration::DeviceInformation;
 
 use crate::device;
 use crate::process;
 
+/// 蓝牙操作全局锁，防止并发操作干扰适配器状态
+static BT_LOCK: Mutex<()> = Mutex::new(());
+
 /// 执行蓝牙连接/断开操作
 pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
+    // 串行化蓝牙操作，防止并发竞争
+    let _guard = BT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let device_id = device::get_device_id_by_name(name)
         .ok_or_else(|| {
             let msg = format!("[bt] Device '{}' not found in device_id map", name);
@@ -22,7 +28,8 @@ pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
     let script_path = find_bt_script()?;
     crate::process::append_log(&format!("[bt] script: {}", script_path));
 
-    let out_file = std::env::temp_dir().join("bt_action_out.txt");
+    // 使用设备 MAC 作为文件名后缀，避免并发时输出文件冲突
+    let out_file = std::env::temp_dir().join(format!("bt_action_out_{}.txt", mac.replace(':', "")));
     let out_arg = out_file.to_string_lossy().to_string();
 
     let result = process::run_powershell_script(

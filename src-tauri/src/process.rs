@@ -15,14 +15,18 @@ pub fn new_hidden_cmd(program: &str) -> Command {
     Command::new(program)
 }
 
-/// 追加日志到 debug.log 文件
+/// 追加日志到 debug.log 文件（基于 exe 所在目录）
 pub fn append_log(msg: &str) {
     use std::io::Write;
     let timestamp = chrono_str();
     let line = format!("[{}]{}\n", timestamp, msg);
+    let log_path = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("debug.log")))
+        .unwrap_or_else(|| "debug.log".into());
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true).append(true)
-        .open("debug.log")
+        .open(&log_path)
     {
         let _ = file.write_all(line.as_bytes());
     }
