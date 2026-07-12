@@ -12,7 +12,7 @@ pub enum DevType {
     Usb,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Device {
     pub name: String,
     pub dt: DevType,

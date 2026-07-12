@@ -151,16 +151,15 @@ pub async fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(
 }
 
 #[tauri::command]
-pub async fn get_tray_tooltip() -> String {
+pub fn get_tray_tooltip() -> String {
     let tray_devices = config::with_config(|c| c.tray_devices.clone());
     if tray_devices.is_empty() {
         return "外设监控".to_string();
     }
 
     let device_names = config::with_config(|c| c.device_names.clone());
-    let devices = tokio::task::spawn_blocking(crate::wmi_query::query_devices)
-        .await
-        .unwrap_or_default();
+    let cache = crate::state::get_devices_cache();
+    let devices = cache.lock().unwrap_or_else(|e| e.into_inner());
 
     let mut lines = Vec::new();
     for tray_name in &tray_devices {
