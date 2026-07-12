@@ -132,8 +132,8 @@ pub fn open_24g_device_file() -> Result<(), String> {
 
 const TRAY_DEVICE_LIMIT: usize = 4;
 
-#[tauri::command]
-pub fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(), String> {
+#[tauri::command(async)]
+pub async fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(), String> {
     let already_added = config::with_config(|c| c.tray_devices.contains(&name));
     if !already_added {
         let count = config::with_config(|c| c.tray_devices.len());
@@ -141,7 +141,11 @@ pub fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(), Str
             return Err(format!("托盘最多添加 {} 个设备", TRAY_DEVICE_LIMIT));
         }
     }
-    config::with_config_mut(|c| toggle_vec_item(&mut c.tray_devices, &name));
+    tokio::task::spawn_blocking(move || {
+        config::with_config_mut(|c| toggle_vec_item(&mut c.tray_devices, &name));
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     let _ = app.emit("tray-devices-changed", ());
     Ok(())
 }

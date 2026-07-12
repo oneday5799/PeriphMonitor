@@ -156,7 +156,8 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let handle = app.handle().clone();
     app.listen("tray-devices-changed", move |_| {
-        update_tooltip(&handle);
+        let h = handle.clone();
+        std::thread::spawn(move || update_tooltip(&h));
     });
 
     Ok(())
