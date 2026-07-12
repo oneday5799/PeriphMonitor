@@ -367,9 +367,12 @@ body {
   z-index: 3000;
   opacity: 0;
   transition: opacity 0.3s;
-  pointer-events: auto;
+  pointer-events: none;
+  display: none;
 }
 
 .toast.show {
+  pointer-events: auto;
   opacity: 1;
+  display: block;
 }
