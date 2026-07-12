@@ -10,12 +10,29 @@ use tauri::{
 use crate::config;
 use crate::popup;
 use crate::windows;
-use crate::state::{TRAY_POS, AUTO_START, AUTO_MENU_ITEM, get_devices_cache, refresh_devices_cache};
+use crate::state::{TRAY_POS, AUTO_START, AUTO_MENU_ITEM, get_devices_cache};
 
 static TRAY_ICON: OnceLock<Mutex<Option<TrayIcon<tauri::Wry>>>> = OnceLock::new();
 
+/// 刷新设备缓存，返回是否发生变化
+pub fn refresh_devices_cache() -> bool {
+    let new_devices = crate::wmi_query::query_devices();
+    let cache = get_devices_cache();
+
+    if let Ok(mut guard) = cache.lock() {
+        if *guard != new_devices {
+            *guard = new_devices;
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
 /// 根据缓存的设备信息构建 tooltip 文本
-fn build_tooltip_text() -> String {
+pub fn build_tooltip_text() -> String {
     let tray_devices = config::with_config(|c| c.tray_devices.clone());
 
     if tray_devices.is_empty() {

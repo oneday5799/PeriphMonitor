@@ -152,30 +152,5 @@ pub async fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(
 
 #[tauri::command]
 pub fn get_tray_tooltip() -> String {
-    let tray_devices = config::with_config(|c| c.tray_devices.clone());
-    if tray_devices.is_empty() {
-        return "外设监控".to_string();
-    }
-
-    let device_names = config::with_config(|c| c.device_names.clone());
-    let cache = crate::state::get_devices_cache();
-    let devices = cache.lock().unwrap_or_else(|e| e.into_inner());
-
-    let mut lines = Vec::new();
-    for tray_name in &tray_devices {
-        if let Some(dev) = devices.iter().find(|d| &d.name == tray_name) {
-            let display_name = device_names.get(&dev.name).unwrap_or(&dev.name);
-            let dot = if dev.status == "已连接" { "🟢" } else { "⚪" };
-            match dev.battery {
-                Some(battery) => lines.push(format!("{} {} - {}%", dot, display_name, battery)),
-                None => lines.push(format!("{} {}", dot, display_name)),
-            }
-        }
-    }
-
-    if lines.is_empty() {
-        "外设监控".to_string()
-    } else {
-        lines.join("\n")
-    }
+    crate::tray::build_tooltip_text()
 }
