@@ -30,5 +30,20 @@ pub fn run_powershell_script(script: &str, args: &[&str]) -> Result<String, Stri
     cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script]);
     cmd.args(args);
     let output = cmd.output().map_err(|e| e.to_string())?;
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    if !output.status.success() || !stderr.is_empty() {
+        eprintln!(
+            "[bt] PowerShell exited={:?} script={} args={:?}\n  stdout: {}\n  stderr: {}",
+            output.status, script, args, stdout, stderr
+        );
+    }
+
+    if !output.status.success() {
+        return Err(format!("Script failed (exit {}): {}", output.status.code().unwrap_or(-1), stderr));
+    }
+
+    Ok(stdout)
 }

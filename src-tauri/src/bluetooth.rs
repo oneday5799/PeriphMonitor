@@ -7,15 +7,24 @@ use crate::process;
 /// 执行蓝牙连接/断开操作
 pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
     let device_id = device::get_device_id_by_name(name)
-        .ok_or_else(|| format!("Device '{}' not found", name))?;
+        .ok_or_else(|| {
+            eprintln!("[bt] Device '{}' not found in device_id map", name);
+            format!("Device '{}' not found", name)
+        })?;
 
     let mac = device_id.rsplit('-').next().unwrap_or("").to_string();
+    eprintln!("[bt] {} device='{}' mac='{}' device_id='{}'", action.to_uppercase(), name, mac, device_id);
 
     let script_path = find_bt_script()?;
-    process::run_powershell_script(
+    eprintln!("[bt] script: {}", script_path);
+
+    let result = process::run_powershell_script(
         &script_path,
         &["-Mac", &mac, "-Action", action],
-    )
+    )?;
+
+    eprintln!("[bt] result: {}", result);
+    Ok(result)
 }
 
 fn find_bt_script() -> Result<String, String> {

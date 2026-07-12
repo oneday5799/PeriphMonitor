@@ -75,7 +75,13 @@ public class BtNative {
     [DllImport("BluetoothApis.dll", SetLastError = true)]
     public static extern IntPtr BluetoothFindFirstRadio(
         ref BLUETOOTH_FIND_RADIO_PARAMS pSearchParams,
-        out IntPtr phRadio);
+        ref IntPtr phRadio);
+
+    [DllImport("BluetoothApis.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool BluetoothFindNextRadio(
+        IntPtr hFind,
+        ref IntPtr phRadio);
 
     [DllImport("BluetoothApis.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
