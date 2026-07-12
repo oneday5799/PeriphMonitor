@@ -14,6 +14,8 @@ pub struct Config {
     pub dedup_devices: bool,
     pub show_unnamed_bt: bool,
     pub use_system_bt: bool,
+    #[serde(default)]
+    pub tray_devices: Vec<String>,
 }
 
 impl Default for Config {
@@ -29,6 +31,7 @@ impl Default for Config {
             dedup_devices: true,
             show_unnamed_bt: false,
             use_system_bt: false,
+            tray_devices: vec![],
         }
     }
 }

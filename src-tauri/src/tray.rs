@@ -1,9 +1,9 @@
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
+    tray::{TrayIcon, TrayIconBuilder},
     Emitter, Listener,
 };
 
@@ -11,6 +11,43 @@ use crate::config;
 use crate::popup;
 use crate::windows;
 use crate::state::{TRAY_POS, AUTO_START, AUTO_MENU_ITEM};
+
+static TRAY_ICON: OnceLock<Mutex<Option<TrayIcon<tauri::Wry>>>> = OnceLock::new();
+
+pub fn update_tooltip(_app: &tauri::AppHandle) {
+    let tray_devices = config::with_config(|c| c.tray_devices.clone());
+
+    let tooltip = if tray_devices.is_empty() {
+        "外设监控".to_string()
+    } else {
+        let device_names = config::with_config(|c| c.device_names.clone());
+        let devices = crate::wmi_query::query_devices();
+
+        let mut lines = Vec::new();
+        for tray_name in &tray_devices {
+            if let Some(dev) = devices.iter().find(|d| &d.name == tray_name) {
+                let display_name = device_names.get(&dev.name).unwrap_or(&dev.name);
+                let dot = if dev.status == "已连接" { "🟢" } else { "⚪" };
+                match dev.battery {
+                    Some(battery) => lines.push(format!("{} {} - {}%", dot, display_name, battery)),
+                    None => lines.push(format!("{} {}", dot, display_name)),
+                }
+            }
+        }
+
+        if lines.is_empty() {
+            "外设监控".to_string()
+        } else {
+            lines.join("\n")
+        }
+    };
+
+    if let Ok(guard) = TRAY_ICON.get_or_init(|| Mutex::new(None)).lock() {
+        if let Some(ref tray) = *guard {
+            let _ = tray.set_tooltip(Some(tooltip));
+        }
+    }
+}
 
 pub fn init_auto_start() {
     AUTO_START.store(config::with_config(|c| c.auto_start), Ordering::Relaxed);
@@ -40,7 +77,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         &[&show_i, &settings_i, &about_i, &auto_i, &exit_i],
     )?;
 
-    let _tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
             .expect("Failed to load tray icon"))
         .tooltip("外设监控")
@@ -91,6 +128,10 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
+    if let Ok(mut guard) = TRAY_ICON.get_or_init(|| Mutex::new(None)).lock() {
+        *guard = Some(_tray);
+    }
+
     let _ = TRAY_POS.get_or_init(|| {
         let handle = app.handle();
         let sf = windows::scale_factor(handle);
@@ -111,6 +152,11 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let new_auto = config::with_config(|c| c.auto_start);
         AUTO_START.store(new_auto, Ordering::Relaxed);
         update_auto_text();
+    });
+
+    let handle = app.handle().clone();
+    app.listen("tray-devices-changed", move |_| {
+        update_tooltip(&handle);
     });
 
     Ok(())

@@ -129,3 +129,41 @@ pub fn open_24g_device_file() -> Result<(), String> {
     let path = crate::process::exe_dir().join("data").join("wireless_24g_devices.json");
     process::open_with_system(&path.to_string_lossy())
 }
+
+#[tauri::command]
+pub fn toggle_device_tray(app: tauri::AppHandle, name: String) {
+    config::with_config_mut(|c| toggle_vec_item(&mut c.tray_devices, &name));
+    let _ = app.emit("tray-devices-changed", ());
+    let _ = app.emit("config-changed", ());
+}
+
+#[tauri::command]
+pub async fn get_tray_tooltip() -> String {
+    let tray_devices = config::with_config(|c| c.tray_devices.clone());
+    if tray_devices.is_empty() {
+        return "外设监控".to_string();
+    }
+
+    let device_names = config::with_config(|c| c.device_names.clone());
+    let devices = tokio::task::spawn_blocking(crate::wmi_query::query_devices)
+        .await
+        .unwrap_or_default();
+
+    let mut lines = Vec::new();
+    for tray_name in &tray_devices {
+        if let Some(dev) = devices.iter().find(|d| &d.name == tray_name) {
+            let display_name = device_names.get(&dev.name).unwrap_or(&dev.name);
+            let dot = if dev.status == "已连接" { "🟢" } else { "⚪" };
+            match dev.battery {
+                Some(battery) => lines.push(format!("{} {} - {}%", dot, display_name, battery)),
+                None => lines.push(format!("{} {}", dot, display_name)),
+            }
+        }
+    }
+
+    if lines.is_empty() {
+        "外设监控".to_string()
+    } else {
+        lines.join("\n")
+    }
+}

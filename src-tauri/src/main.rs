@@ -66,6 +66,8 @@ fn main() {
             commands::open_bt_settings,
             commands::open_url,
             commands::open_24g_device_file,
+            commands::toggle_device_tray,
+            commands::get_tray_tooltip,
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;

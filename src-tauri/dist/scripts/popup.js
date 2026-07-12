@@ -4,6 +4,7 @@ let hiddenGroups = [];
 let deviceNames = {};
 let deviceGroups = {};
 let useSystemBt = false;
+let trayDevices = [];
 
 function showToast(msg, onClick) {
   let el = document.querySelector(".toast");
@@ -42,6 +43,7 @@ async function loadDevices() {
     deviceNames = config.device_names || {};
     deviceGroups = config.device_groups || {};
     useSystemBt = config.use_system_bt || false;
+    trayDevices = config.tray_devices || [];
     renderDevices();
   } catch (e) {
     list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
@@ -336,6 +338,20 @@ function showContextMenu(x, y, dev) {
   });
   menu.appendChild(hideItem);
 
+  // Tray option
+  const isTray = trayDevices.includes(dev.name);
+  const trayItem = document.createElement("div");
+  trayItem.className = "context-menu-item";
+  trayItem.textContent = isTray ? "从托盘移除" : "添加到托盘";
+  trayItem.addEventListener("click", async () => {
+    await invoke("toggle_device_tray", { name: dev.name });
+    const config = await invoke("get_config");
+    trayDevices = config.tray_devices || [];
+    renderDevices();
+    hideContextMenu();
+  });
+  menu.appendChild(trayItem);
+
   document.body.appendChild(menu);
 
   // Smart boundary avoidance
@@ -522,6 +538,7 @@ window.addEventListener("focus", async () => {
     deviceNames = cfg.device_names || {};
     deviceGroups = cfg.device_groups || {};
     useSystemBt = cfg.use_system_bt || false;
+    trayDevices = cfg.tray_devices || [];
     allDevices = await invoke("get_devices");
     renderDevices();
   } catch (e) {
