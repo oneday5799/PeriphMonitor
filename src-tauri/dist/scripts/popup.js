@@ -564,6 +564,11 @@ window.addEventListener("focus", async () => {
   const invoke = getInvoke();
   if (!invoke) return;
   try {
+    // 保存当前滚动位置
+    const volumeTab = document.getElementById('tab-volume');
+    const deviceTab = document.getElementById('tab-devices');
+    const scrollTop = (volumeTab.style.display !== 'none' ? volumeTab : deviceTab).scrollTop;
+
     const cfg = await invoke("get_config");
     hiddenDevices = cfg.hidden_devices || [];
     hiddenGroups = cfg.hidden_groups || [];
@@ -573,6 +578,15 @@ window.addEventListener("focus", async () => {
     trayDevices = cfg.tray_devices || [];
     allDevices = await invoke("get_devices");
     renderDevices();
+    // 如果当前在音量页面，刷新应用音量列表
+    if (volumeTab.style.display !== 'none') {
+      await loadAudioDevices();
+      if (selectedDeviceId) {
+        await loadAudioSessions(selectedDeviceId);
+      }
+    }
+    // 恢复滚动位置
+    (volumeTab.style.display !== 'none' ? volumeTab : deviceTab).scrollTop = scrollTop;
   } catch (e) {
     console.error("Failed to refresh on focus:", e);
   }
@@ -596,6 +610,10 @@ document.querySelectorAll('.tab-title').forEach(tab => {
     document.getElementById('tab-volume').style.display = tabName === 'volume' ? 'block' : 'none';
     if (tabName === 'volume') {
       await loadAudioDevices();
+      // 刷新应用音量列表
+      if (selectedDeviceId) {
+        await loadAudioSessions(selectedDeviceId);
+      }
     }
   });
 });
@@ -686,10 +704,8 @@ function updateSliderGradient(slider) {
 
 async function loadAudioDevices() {
   const list = document.getElementById("audio-device-list");
-  list.innerHTML = '<div class="loading">加载中...</div>';
   const invoke = getInvoke();
   if (!invoke) {
-    list.innerHTML = '<div class="loading">Tauri API 未加载</div>';
     return;
   }
   try {
@@ -701,7 +717,10 @@ async function loadAudioDevices() {
       selectDevice(audioDevices[0].id);
     }
   } catch (e) {
-    list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
+    // 仅在没有现有内容时显示错误
+    if (list.querySelectorAll('.audio-device-card').length === 0) {
+      list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
+    }
   }
 }
 
@@ -711,78 +730,137 @@ function renderAudioDevices() {
     list.innerHTML = '<div class="loading">没有检测到音频设备</div>';
     return;
   }
-  list.innerHTML = "";
+
+  // 清除加载指示器
+  list.querySelectorAll('.loading').forEach(el => el.remove());
+
+  // 获取现有卡片
+  const existingCards = new Map();
+  list.querySelectorAll('.audio-device-card').forEach(card => {
+    existingCards.set(card.dataset.deviceId, card);
+  });
+
+  const newIds = new Set(audioDevices.map(d => d.id));
+
+  // 移除不再存在的卡片
+  existingCards.forEach((card, id) => {
+    if (!newIds.has(id)) {
+      card.remove();
+    }
+  });
+
+  // 更新或添加卡片
   for (const device of audioDevices) {
-    const card = document.createElement("div");
-    card.className = "audio-device-card";
-    card.dataset.deviceId = device.id;
-    if (device.id === selectedDeviceId) {
-      card.classList.add("selected");
+    let card = existingCards.get(device.id);
+
+    if (card) {
+      // 更新现有卡片
+      updateAudioDeviceCard(card, device);
+    } else {
+      // 创建新卡片
+      card = createAudioDeviceCard(device);
+      list.appendChild(card);
     }
+  }
+}
 
-    const header = document.createElement("div");
-    header.className = "audio-device-header";
+function createAudioDeviceCard(device) {
+  const card = document.createElement("div");
+  card.className = "audio-device-card";
+  card.dataset.deviceId = device.id;
+  if (device.id === selectedDeviceId) {
+    card.classList.add("selected");
+  }
 
-    const nameEl = document.createElement("div");
-    nameEl.className = "audio-device-name" + (device.is_default ? " default" : "");
-    nameEl.textContent = device.name;
-    if (device.is_default) {
-      const badge = document.createElement("span");
-      badge.className = "default-badge";
-      badge.textContent = "(默认)";
-      nameEl.appendChild(badge);
+  const header = document.createElement("div");
+  header.className = "audio-device-header";
+
+  const nameEl = document.createElement("div");
+  nameEl.className = "audio-device-name" + (device.is_default ? " default" : "");
+  nameEl.textContent = device.name;
+  if (device.is_default) {
+    const badge = document.createElement("span");
+    badge.className = "default-badge";
+    badge.textContent = "(默认)";
+    nameEl.appendChild(badge);
+  }
+  header.appendChild(nameEl);
+  card.appendChild(header);
+
+  const controls = document.createElement("div");
+  controls.className = "audio-device-controls";
+
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.className = "volume-slider";
+  slider.min = "0";
+  slider.max = "100";
+  slider.value = Math.round(device.volume * 100);
+
+  const debouncedSetDeviceVolume = debounce(async (id, vol) => {
+    await setDeviceVolume(id, vol);
+  }, 150);
+
+  slider.addEventListener("input", (e) => {
+    const value = parseInt(e.target.value) / 100;
+    device.volume = value;
+    updateVolumeDisplay(device.id, e.target.value);
+    updateSliderGradient(e.target);
+    debouncedSetDeviceVolume(device.id, value);
+  });
+  updateSliderGradient(slider);
+  controls.appendChild(slider);
+
+  const valueEl = document.createElement("span");
+  valueEl.className = "volume-value";
+  valueEl.id = `volume-value-${device.id}`;
+  valueEl.textContent = `${Math.round(device.volume * 100)}%`;
+  controls.appendChild(valueEl);
+
+  const muteBtn = document.createElement("button");
+  muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
+  muteBtn.innerHTML = device.is_muted ? getMuteIcon() : getVolumeIcon();
+  muteBtn.addEventListener("click", () => toggleDeviceMute(device.id));
+  controls.appendChild(muteBtn);
+
+  card.appendChild(controls);
+
+  // Click to select device and show its sessions
+  card.addEventListener("click", (e) => {
+    if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
+      selectDevice(device.id);
     }
-    header.appendChild(nameEl);
-    card.appendChild(header);
+  });
 
-    const controls = document.createElement("div");
-    controls.className = "audio-device-controls";
+  return card;
+}
 
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.className = "volume-slider";
-    slider.min = "0";
-    slider.max = "100";
+function updateAudioDeviceCard(card, device) {
+  // 更新选中状态
+  if (device.id === selectedDeviceId) {
+    card.classList.add("selected");
+  } else {
+    card.classList.remove("selected");
+  }
+
+  // 更新音量滑块（仅当用户未在拖动时）
+  const slider = card.querySelector('.volume-slider');
+  if (slider && document.activeElement !== slider) {
     slider.value = Math.round(device.volume * 100);
-
-    const debouncedSetDeviceVolume = debounce(async (id, vol) => {
-      await setDeviceVolume(id, vol);
-    }, 150);
-
-    slider.addEventListener("input", (e) => {
-      const value = parseInt(e.target.value) / 100;
-      // Update local state immediately for responsive UI
-      device.volume = value;
-      updateVolumeDisplay(device.id, e.target.value);
-      updateSliderGradient(e.target);
-      // Debounced backend call
-      debouncedSetDeviceVolume(device.id, value);
-    });
     updateSliderGradient(slider);
-    controls.appendChild(slider);
+  }
 
-    const valueEl = document.createElement("span");
-    valueEl.className = "volume-value";
-    valueEl.id = `volume-value-${device.id}`;
+  // 更新音量显示
+  const valueEl = card.querySelector('.volume-value');
+  if (valueEl) {
     valueEl.textContent = `${Math.round(device.volume * 100)}%`;
-    controls.appendChild(valueEl);
+  }
 
-    const muteBtn = document.createElement("button");
+  // 更新静音按钮
+  const muteBtn = card.querySelector('.mute-btn');
+  if (muteBtn) {
     muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
     muteBtn.innerHTML = device.is_muted ? getMuteIcon() : getVolumeIcon();
-    muteBtn.addEventListener("click", () => toggleDeviceMute(device.id));
-    controls.appendChild(muteBtn);
-
-    card.appendChild(controls);
-
-    // Click to select device and show its sessions
-    card.addEventListener("click", (e) => {
-      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
-        selectDevice(device.id);
-      }
-    });
-
-    list.appendChild(card);
   }
 }
 
@@ -794,17 +872,18 @@ function selectDevice(deviceId) {
 
 async function loadAudioSessions(deviceId) {
   const list = document.getElementById("audio-session-list");
-  list.innerHTML = '<div class="loading">加载中...</div>';
   const invoke = getInvoke();
   if (!invoke) {
-    list.innerHTML = '<div class="loading">Tauri API 未加载</div>';
     return;
   }
   try {
     audioSessions = await invoke("get_audio_sessions", { deviceId });
     renderAudioSessions();
   } catch (e) {
-    list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
+    // 仅在没有现有内容时显示错误
+    if (list.querySelectorAll('.audio-session-card').length === 0) {
+      list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
+    }
   }
 }
 
@@ -814,76 +893,127 @@ function renderAudioSessions() {
     list.innerHTML = '<div class="loading">没有正在播放的应用</div>';
     return;
   }
-  list.innerHTML = "";
-  for (const session of audioSessions) {
-    const card = document.createElement("div");
-    card.className = "audio-session-card";
-    card.dataset.sessionId = session.id;
 
-    const iconEl = document.createElement("div");
-    iconEl.className = "session-icon";
-    if (session.icon && session.icon.length > 100) {
-      const img = document.createElement("img");
-      img.src = `data:image/png;base64,${session.icon}`;
-      img.style.width = "100%";
-      img.style.height = "100%";
-      img.style.borderRadius = "4px";
-      img.onerror = () => { iconEl.textContent = session.name.charAt(0).toUpperCase(); };
-      iconEl.appendChild(img);
-    } else {
-      // Show first letter of app name as icon
-      iconEl.textContent = session.name.charAt(0).toUpperCase();
-      iconEl.style.background = stringToColor(session.name);
-      iconEl.style.color = "#fff";
-      iconEl.style.fontWeight = "bold";
+  // 清除加载指示器
+  list.querySelectorAll('.loading').forEach(el => el.remove());
+
+  // 获取现有卡片
+  const existingCards = new Map();
+  list.querySelectorAll('.audio-session-card').forEach(card => {
+    existingCards.set(card.dataset.sessionId, card);
+  });
+
+  const newIds = new Set(audioSessions.map(s => s.id));
+
+  // 移除不再存在的卡片
+  existingCards.forEach((card, id) => {
+    if (!newIds.has(id)) {
+      card.remove();
     }
-    card.appendChild(iconEl);
+  });
 
-    const controls = document.createElement("div");
-    controls.className = "session-controls";
+  // 更新或添加卡片
+  for (const session of audioSessions) {
+    let card = existingCards.get(session.id);
 
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.className = "volume-slider session-slider";
-    slider.min = "0";
-    slider.max = "100";
-    slider.value = Math.round(session.volume * 100);
+    if (card) {
+      // 更新现有卡片
+      updateAudioSessionCard(card, session);
+    } else {
+      // 创建新卡片
+      card = createAudioSessionCard(session);
+      list.appendChild(card);
+    }
+  }
+}
 
-    const debouncedSetSessionVolume = debounce(async (id, vol) => {
-      await setSessionVolume(id, vol);
-    }, 150);
+function createAudioSessionCard(session) {
+  const card = document.createElement("div");
+  card.className = "audio-session-card";
+  card.dataset.sessionId = session.id;
 
-    slider.addEventListener("input", async (e) => {
-      const value = parseInt(e.target.value) / 100;
-      // Update local state immediately for responsive UI
-      session.volume = value;
-      updateSliderGradient(e.target);
-      const valEl = card.querySelector('.volume-value');
-      if (valEl) valEl.textContent = `${e.target.value}%`;
-      // Debounced backend call
-      debouncedSetSessionVolume(session.id, value);
-    });
-    updateSliderGradient(slider);
-    controls.appendChild(slider);
+  const iconEl = document.createElement("div");
+  iconEl.className = "session-icon";
+  if (session.icon && session.icon.length > 100) {
+    const img = document.createElement("img");
+    img.src = `data:image/png;base64,${session.icon}`;
+    img.style.width = "100%";
+    img.style.height = "100%";
+    img.style.borderRadius = "4px";
+    img.onerror = () => { iconEl.textContent = session.name.charAt(0).toUpperCase(); };
+    iconEl.appendChild(img);
+  } else {
+    iconEl.textContent = session.name.charAt(0).toUpperCase();
+    iconEl.style.background = stringToColor(session.name);
+    iconEl.style.color = "#fff";
+    iconEl.style.fontWeight = "bold";
+  }
+  card.appendChild(iconEl);
 
-    const valueEl = document.createElement("span");
-    valueEl.className = "volume-value";
-    valueEl.textContent = `${Math.round(session.volume * 100)}%`;
-    controls.appendChild(valueEl);
+  const controls = document.createElement("div");
+  controls.className = "session-controls";
 
-    const muteBtn = document.createElement("button");
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.className = "volume-slider session-slider";
+  slider.min = "0";
+  slider.max = "100";
+  slider.value = Math.round(session.volume * 100);
+
+  const debouncedSetSessionVolume = debounce(async (id, vol) => {
+    await setSessionVolume(id, vol);
+  }, 150);
+
+  slider.addEventListener("input", async (e) => {
+    const value = parseInt(e.target.value) / 100;
+    session.volume = value;
+    updateSliderGradient(e.target);
+    const valEl = card.querySelector('.volume-value');
+    if (valEl) valEl.textContent = `${e.target.value}%`;
+    debouncedSetSessionVolume(session.id, value);
+  });
+  updateSliderGradient(slider);
+  controls.appendChild(slider);
+
+  const valueEl = document.createElement("span");
+  valueEl.className = "volume-value";
+  valueEl.textContent = `${Math.round(session.volume * 100)}%`;
+  controls.appendChild(valueEl);
+
+  const muteBtn = document.createElement("button");
+  muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
+  muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
+  muteBtn.addEventListener("click", async () => {
+    await toggleSessionMute(session.id);
+    session.is_muted = !session.is_muted;
     muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
     muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
-    muteBtn.addEventListener("click", async () => {
-      await toggleSessionMute(session.id);
-      session.is_muted = !session.is_muted;
-      muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
-      muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
-    });
-    controls.appendChild(muteBtn);
+  });
+  controls.appendChild(muteBtn);
 
-    card.appendChild(controls);
-    list.appendChild(card);
+  card.appendChild(controls);
+  return card;
+}
+
+function updateAudioSessionCard(card, session) {
+  // 更新音量滑块（仅当用户未在拖动时）
+  const slider = card.querySelector('.volume-slider');
+  if (slider && document.activeElement !== slider) {
+    slider.value = Math.round(session.volume * 100);
+    updateSliderGradient(slider);
+  }
+
+  // 更新音量显示
+  const valueEl = card.querySelector('.volume-value');
+  if (valueEl) {
+    valueEl.textContent = `${Math.round(session.volume * 100)}%`;
+  }
+
+  // 更新静音按钮
+  const muteBtn = card.querySelector('.mute-btn');
+  if (muteBtn) {
+    muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
+    muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
   }
 }
 
