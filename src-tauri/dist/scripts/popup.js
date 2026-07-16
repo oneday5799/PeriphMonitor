@@ -625,6 +625,7 @@ function updateDeviceCard(device) {
   const slider = targetCard.querySelector('.volume-slider');
   if (slider && document.activeElement !== slider) {
     slider.value = Math.round(device.volume * 100);
+    updateSliderGradient(slider);
   }
   const valueEl = targetCard.querySelector('.volume-value');
   if (valueEl) {
@@ -635,6 +636,13 @@ function updateDeviceCard(device) {
     muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
     muteBtn.innerHTML = device.is_muted ? getMuteIcon() : getVolumeIcon();
   }
+}
+
+function updateSliderGradient(slider) {
+  const value = slider.value;
+  const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
+  // Update the track pseudo-element's background
+  slider.style.setProperty('--track-color', `linear-gradient(to right, #0078d7 0%, #0078d7 ${percentage}%, #e0e0e0 ${percentage}%, #e0e0e0 100%)`);
 }
 
 async function loadAudioDevices() {
@@ -701,7 +709,9 @@ function renderAudioDevices() {
       const value = parseInt(e.target.value) / 100;
       setDeviceVolume(device.id, value);
       updateVolumeDisplay(device.id, e.target.value);
+      updateSliderGradient(e.target);
     });
+    updateSliderGradient(slider);
     controls.appendChild(slider);
 
     const valueEl = document.createElement("span");
@@ -796,7 +806,9 @@ function renderAudioSessions() {
     slider.addEventListener("input", (e) => {
       const value = parseInt(e.target.value) / 100;
       setSessionVolume(session.id, value);
+      updateSliderGradient(e.target);
     });
+    updateSliderGradient(slider);
     controls.appendChild(slider);
 
     const valueEl = document.createElement("span");
