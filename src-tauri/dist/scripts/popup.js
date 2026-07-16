@@ -5,6 +5,9 @@ let deviceNames = {};
 let deviceGroups = {};
 let useSystemBt = false;
 let trayDevices = [];
+let audioDevices = [];
+let audioSessions = [];
+let selectedDeviceId = null;
 
 function showToast(msg, onClick) {
   let el = document.querySelector(".toast");
@@ -575,6 +578,7 @@ if (window.__TAURI__) {
 }
 
 // Tab switching
+let sessionRefreshInterval = null;
 
 document.querySelectorAll('.tab-title').forEach(tab => {
   tab.addEventListener('click', async () => {
@@ -585,14 +589,68 @@ document.querySelectorAll('.tab-title').forEach(tab => {
     document.getElementById('tab-volume').style.display = tabName === 'volume' ? 'block' : 'none';
     if (tabName === 'volume') {
       await loadAudioDevices();
+      startSessionRefresh();
+    } else {
+      stopSessionRefresh();
     }
   });
 });
 
-// Volume control
-let audioDevices = [];
-let audioSessions = [];
-let selectedDeviceId = null;
+function startSessionRefresh() {
+  stopSessionRefresh();
+  sessionRefreshInterval = setInterval(async () => {
+    if (document.getElementById('tab-volume').style.display === 'none') return;
+    const invoke = getInvoke();
+    if (!invoke) return;
+    try {
+      const sessions = await invoke("get_audio_sessions", { deviceId: "" });
+      if (Array.isArray(sessions)) {
+        // Update existing sessions
+        for (const newSession of sessions) {
+          const oldSession = audioSessions.find(s => s.id === newSession.id);
+          if (oldSession) {
+            oldSession.volume = newSession.volume;
+            oldSession.is_muted = newSession.is_muted;
+            // Update UI
+            updateSessionCard(oldSession);
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }, 1000);
+}
+
+function stopSessionRefresh() {
+  if (sessionRefreshInterval) {
+    clearInterval(sessionRefreshInterval);
+    sessionRefreshInterval = null;
+  }
+}
+
+function updateSessionCard(session) {
+  const cards = document.querySelectorAll('.audio-session-card');
+  for (const card of cards) {
+    if (card.dataset.sessionId === session.id) {
+      const slider = card.querySelector('.volume-slider');
+      if (slider && document.activeElement !== slider) {
+        slider.value = Math.round(session.volume * 100);
+        updateSliderGradient(slider);
+      }
+      const valueEl = card.querySelector('.volume-value');
+      if (valueEl) {
+        valueEl.textContent = `${Math.round(session.volume * 100)}%`;
+      }
+      const muteBtn = card.querySelector('.mute-btn');
+      if (muteBtn) {
+        muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
+        muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
+      }
+      break;
+    }
+  }
+}
 
 // Listen for volume change events from Rust backend
 if (window.__TAURI__ && window.__TAURI__.event) {
@@ -771,28 +829,26 @@ function renderAudioSessions() {
   for (const session of audioSessions) {
     const card = document.createElement("div");
     card.className = "audio-session-card";
+    card.dataset.sessionId = session.id;
 
     const iconEl = document.createElement("div");
     iconEl.className = "session-icon";
-    iconEl.textContent = "♪";
-    card.appendChild(iconEl);
-
-    const infoEl = document.createElement("div");
-    infoEl.className = "session-info";
-
-    const nameEl = document.createElement("div");
-    nameEl.className = "session-name";
-    nameEl.textContent = session.name;
-    infoEl.appendChild(nameEl);
-
-    if (session.pid > 0) {
-      const pidEl = document.createElement("div");
-      pidEl.className = "session-pid";
-      pidEl.textContent = `PID: ${session.pid}`;
-      infoEl.appendChild(pidEl);
+    if (session.icon && session.icon.length > 100) {
+      const img = document.createElement("img");
+      img.src = `data:image/png;base64,${session.icon}`;
+      img.style.width = "100%";
+      img.style.height = "100%";
+      img.style.borderRadius = "4px";
+      img.onerror = () => { iconEl.textContent = session.name.charAt(0).toUpperCase(); };
+      iconEl.appendChild(img);
+    } else {
+      // Show first letter of app name as icon
+      iconEl.textContent = session.name.charAt(0).toUpperCase();
+      iconEl.style.background = stringToColor(session.name);
+      iconEl.style.color = "#fff";
+      iconEl.style.fontWeight = "bold";
     }
-
-    card.appendChild(infoEl);
+    card.appendChild(iconEl);
 
     const controls = document.createElement("div");
     controls.className = "session-controls";
@@ -803,10 +859,13 @@ function renderAudioSessions() {
     slider.min = "0";
     slider.max = "100";
     slider.value = Math.round(session.volume * 100);
-    slider.addEventListener("input", (e) => {
+    slider.addEventListener("input", async (e) => {
       const value = parseInt(e.target.value) / 100;
-      setSessionVolume(session.id, value);
+      await setSessionVolume(session.id, value);
+      session.volume = value;
       updateSliderGradient(e.target);
+      const valEl = card.querySelector('.volume-value');
+      if (valEl) valEl.textContent = `${e.target.value}%`;
     });
     updateSliderGradient(slider);
     controls.appendChild(slider);
@@ -819,7 +878,12 @@ function renderAudioSessions() {
     const muteBtn = document.createElement("button");
     muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
     muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
-    muteBtn.addEventListener("click", () => toggleSessionMute(session.id));
+    muteBtn.addEventListener("click", async () => {
+      await toggleSessionMute(session.id);
+      session.is_muted = !session.is_muted;
+      muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
+      muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
+    });
     controls.appendChild(muteBtn);
 
     card.appendChild(controls);
@@ -898,4 +962,13 @@ function getMuteIcon() {
     <line x1="23" y1="9" x2="17" y2="15"/>
     <line x1="17" y1="9" x2="23" y2="15"/>
   </svg>`;
+}
+
+function stringToColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 60%, 50%)`;
 }
