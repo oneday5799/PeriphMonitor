@@ -6,6 +6,7 @@ version = 4
 name = "PeriphMonitor"
 version = "1.0.0"
 dependencies = [
+ "once_cell",
  "regex",
  "serde",
  "serde_json",

@@ -154,3 +154,60 @@ pub async fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(
 pub fn get_tray_tooltip() -> String {
     crate::tray::build_tooltip_text()
 }
+
+// Audio commands
+
+#[tauri::command(async)]
+pub async fn get_audio_devices() -> Result<Vec<crate::audio::AudioDevice>, String> {
+    tokio::task::spawn_blocking(crate::audio::enumerate_output_devices)
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub async fn set_device_volume(device_id: String, volume: f32) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || crate::audio::set_device_volume(&device_id, volume))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub async fn toggle_device_mute(device_id: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || crate::audio::toggle_device_mute(&device_id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub async fn get_audio_sessions(device_id: String) -> Result<Vec<crate::audio::AudioSession>, String> {
+    tokio::task::spawn_blocking(move || crate::audio::enumerate_audio_sessions(&device_id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub async fn set_session_volume(session_id: String, volume: f32) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || crate::audio::set_session_volume(&session_id, volume))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub async fn toggle_session_mute(session_id: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || crate::audio::toggle_session_mute(&session_id))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub async fn check_volume_changes() -> Result<Vec<crate::audio::VolumeChangeEvent>, String> {
+    tokio::task::spawn_blocking(crate::audio::check_volume_changes)
+        .await
+        .map_err(|e| e.to_string())
+}

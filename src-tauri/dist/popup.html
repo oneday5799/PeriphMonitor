@@ -11,7 +11,10 @@
   <div class="popup-container" id="app">
     <!-- Title bar (draggable) -->
     <div class="title-bar" data-tauri-drag-region>
-      <span class="title">外设信息</span>
+      <div class="title-tabs">
+        <span class="tab-title active" data-tab="devices">设备信息</span>
+        <span class="tab-title" data-tab="volume">音量控制</span>
+      </div>
       <div class="title-buttons">
         <button class="icon-btn" id="btn-refresh" title="刷新">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -28,9 +31,29 @@
       </div>
     </div>
 
-    <!-- Device list -->
-    <div class="device-list" id="device-list">
-      <div class="loading" id="loading">加载中...</div>
+    <!-- Device list (tab 1) -->
+    <div class="tab-content active" id="tab-devices">
+      <div class="device-list" id="device-list">
+        <div class="loading" id="loading">加载中...</div>
+      </div>
+    </div>
+
+    <!-- Volume control (tab 2) -->
+    <div class="tab-content" id="tab-volume" style="display: none;">
+      <div class="volume-control">
+        <div class="volume-section">
+          <div class="section-title">设备音量</div>
+          <div id="audio-device-list" class="audio-device-list">
+            <div class="loading">加载中...</div>
+          </div>
+        </div>
+        <div class="volume-section">
+          <div class="section-title">应用音量</div>
+          <div id="audio-session-list" class="audio-session-list">
+            <div class="loading">没有正在播放的应用</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

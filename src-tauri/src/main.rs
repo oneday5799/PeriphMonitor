@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![warn(unused_imports, dead_code)]
 
+mod audio;
 mod bluetooth;
 mod classify;
 mod commands;
@@ -68,6 +69,13 @@ fn main() {
             commands::open_24g_device_file,
             commands::toggle_device_tray,
             commands::get_tray_tooltip,
+            commands::get_audio_devices,
+            commands::set_device_volume,
+            commands::toggle_device_mute,
+            commands::get_audio_sessions,
+            commands::set_session_volume,
+            commands::toggle_session_mute,
+            commands::check_volume_changes,
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;
