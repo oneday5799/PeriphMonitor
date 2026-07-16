@@ -124,17 +124,31 @@ pub fn set_device_volume(device_id: &str, volume: f32) -> Result<()> {
         let endpoint: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)?;
         endpoint.SetMasterVolumeLevelScalar(volume.max(0.0).min(1.0), ptr::null())?;
     }
+    // Update cached state
+    if let Ok(mut state) = VOLUME_STATE.lock() {
+        if let Some(s) = state.iter_mut().find(|s| s.device_id == device_id) {
+            s.volume = volume;
+        }
+    }
     Ok(())
 }
 
 pub fn toggle_device_mute(device_id: &str) -> Result<()> {
+    let new_muted;
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
         let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
         let device = enumerator.GetDevice(&HSTRING::from(device_id))?;
         let endpoint: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)?;
         let current = endpoint.GetMute()?;
-        endpoint.SetMute(!current.as_bool(), ptr::null())?;
+        new_muted = !current.as_bool();
+        endpoint.SetMute(new_muted, ptr::null())?;
+    }
+    // Update cached state
+    if let Ok(mut state) = VOLUME_STATE.lock() {
+        if let Some(s) = state.iter_mut().find(|s| s.device_id == device_id) {
+            s.is_muted = new_muted;
+        }
     }
     Ok(())
 }

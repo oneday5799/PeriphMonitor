@@ -9,6 +9,15 @@ let audioDevices = [];
 let audioSessions = [];
 let selectedDeviceId = null;
 
+// Debounce helper
+function debounce(fn, delay) {
+  let timer = null;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
 function showToast(msg, onClick) {
   let el = document.querySelector(".toast");
   if (!el) {
@@ -578,8 +587,6 @@ if (window.__TAURI__) {
 }
 
 // Tab switching
-let sessionRefreshInterval = null;
-
 document.querySelectorAll('.tab-title').forEach(tab => {
   tab.addEventListener('click', async () => {
     document.querySelectorAll('.tab-title').forEach(t => t.classList.remove('active'));
@@ -589,45 +596,9 @@ document.querySelectorAll('.tab-title').forEach(tab => {
     document.getElementById('tab-volume').style.display = tabName === 'volume' ? 'block' : 'none';
     if (tabName === 'volume') {
       await loadAudioDevices();
-      startSessionRefresh();
-    } else {
-      stopSessionRefresh();
     }
   });
 });
-
-function startSessionRefresh() {
-  stopSessionRefresh();
-  sessionRefreshInterval = setInterval(async () => {
-    if (document.getElementById('tab-volume').style.display === 'none') return;
-    const invoke = getInvoke();
-    if (!invoke) return;
-    try {
-      const sessions = await invoke("get_audio_sessions", { deviceId: "" });
-      if (Array.isArray(sessions)) {
-        // Update existing sessions
-        for (const newSession of sessions) {
-          const oldSession = audioSessions.find(s => s.id === newSession.id);
-          if (oldSession) {
-            oldSession.volume = newSession.volume;
-            oldSession.is_muted = newSession.is_muted;
-            // Update UI
-            updateSessionCard(oldSession);
-          }
-        }
-      }
-    } catch (e) {
-      // Ignore errors
-    }
-  }, 1000);
-}
-
-function stopSessionRefresh() {
-  if (sessionRefreshInterval) {
-    clearInterval(sessionRefreshInterval);
-    sessionRefreshInterval = null;
-  }
-}
 
 function updateSessionCard(session) {
   const cards = document.querySelectorAll('.audio-session-card');
@@ -658,11 +629,21 @@ if (window.__TAURI__ && window.__TAURI__.event) {
     const changes = event.payload;
     if (Array.isArray(changes)) {
       for (const change of changes) {
+        // Check if it's a device change
         const device = audioDevices.find(d => d.id === change.device_id);
         if (device) {
           device.volume = change.volume;
           device.is_muted = change.is_muted;
           updateDeviceCard(device);
+        }
+        // Check if it's a session change
+        if (change.session_id) {
+          const session = audioSessions.find(s => s.id === change.session_id);
+          if (session) {
+            session.volume = change.volume;
+            session.is_muted = change.is_muted;
+            updateSessionCard(session);
+          }
         }
       }
     }
@@ -763,11 +744,19 @@ function renderAudioDevices() {
     slider.min = "0";
     slider.max = "100";
     slider.value = Math.round(device.volume * 100);
+
+    const debouncedSetDeviceVolume = debounce(async (id, vol) => {
+      await setDeviceVolume(id, vol);
+    }, 150);
+
     slider.addEventListener("input", (e) => {
       const value = parseInt(e.target.value) / 100;
-      setDeviceVolume(device.id, value);
+      // Update local state immediately for responsive UI
+      device.volume = value;
       updateVolumeDisplay(device.id, e.target.value);
       updateSliderGradient(e.target);
+      // Debounced backend call
+      debouncedSetDeviceVolume(device.id, value);
     });
     updateSliderGradient(slider);
     controls.appendChild(slider);
@@ -859,13 +848,20 @@ function renderAudioSessions() {
     slider.min = "0";
     slider.max = "100";
     slider.value = Math.round(session.volume * 100);
+
+    const debouncedSetSessionVolume = debounce(async (id, vol) => {
+      await setSessionVolume(id, vol);
+    }, 150);
+
     slider.addEventListener("input", async (e) => {
       const value = parseInt(e.target.value) / 100;
-      await setSessionVolume(session.id, value);
+      // Update local state immediately for responsive UI
       session.volume = value;
       updateSliderGradient(e.target);
       const valEl = card.querySelector('.volume-value');
       if (valEl) valEl.textContent = `${e.target.value}%`;
+      // Debounced backend call
+      debouncedSetSessionVolume(session.id, value);
     });
     updateSliderGradient(slider);
     controls.appendChild(slider);
