@@ -2,6 +2,7 @@
 #![warn(unused_imports, dead_code)]
 
 mod audio;
+mod audio_notify;
 mod bluetooth;
 mod classify;
 mod commands;
@@ -79,8 +80,8 @@ fn main() {
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;
-            // Start volume change watcher
-            crate::audio::start_volume_watcher(app.handle().clone());
+            // 初始化音频通知回调（替代轮询）
+            crate::audio_notify::init_audio_notify(app.handle().clone());
             if !is_autostart {
                 popup::toggle(app.handle());
             }

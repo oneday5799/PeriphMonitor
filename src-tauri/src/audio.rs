@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::ptr;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use tauri::Emitter;
-use tokio::sync::mpsc;
 use windows::core::*;
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::Endpoints::*;
@@ -21,24 +18,6 @@ pub struct AudioSession { pub id: String, pub name: String, pub icon: String, pu
 
 static VOLUME_STATE: once_cell::sync::Lazy<Arc<Mutex<Vec<VolumeState>>>> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 struct VolumeState { device_id: String, volume: f32, is_muted: bool }
-
-pub fn start_volume_watcher(app_handle: tauri::AppHandle) {
-    let _ = enumerate_output_devices();
-    let (tx, mut rx) = mpsc::channel::<Vec<VolumeChangeEvent>>(32);
-    tauri::async_runtime::spawn(async move {
-        while let Some(changes) = rx.recv().await {
-            if !changes.is_empty() { let _ = app_handle.emit("volume-changed", &changes); }
-        }
-    });
-    thread::spawn(move || {
-        unsafe { let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok(); }
-        loop {
-            thread::sleep(std::time::Duration::from_millis(200));
-            let changes = check_volume_changes_internal();
-            if !changes.is_empty() && tx.blocking_send(changes).is_err() { break; }
-        }
-    });
-}
 
 fn check_volume_changes_internal() -> Vec<VolumeChangeEvent> {
     let mut changes = Vec::new();
