@@ -584,10 +584,7 @@ document.querySelectorAll('.tab-title').forEach(tab => {
     document.getElementById('tab-devices').style.display = tabName === 'devices' ? 'block' : 'none';
     document.getElementById('tab-volume').style.display = tabName === 'volume' ? 'block' : 'none';
     if (tabName === 'volume') {
-      await loadAudioDevices(); // Wait for devices to load
-      startVolumePolling(); // Then start polling
-    } else {
-      stopVolumePolling();
+      await loadAudioDevices();
     }
   });
 });
@@ -596,56 +593,26 @@ document.querySelectorAll('.tab-title').forEach(tab => {
 let audioDevices = [];
 let audioSessions = [];
 let selectedDeviceId = null;
-let volumeRefreshInterval = null;
 
-// Start polling for volume changes
-function startVolumePolling() {
-  stopVolumePolling();
-  console.log("[Volume] Starting polling, audioDevices count:", audioDevices.length);
-  volumeRefreshInterval = setInterval(async () => {
-    // Skip if not on volume tab
-    if (document.getElementById('tab-volume').style.display === 'none') return;
-    // Skip if no devices loaded
-    if (audioDevices.length === 0) {
-      console.log("[Volume] No devices loaded, skipping poll");
-      return;
-    }
-    const invoke = getInvoke();
-    if (!invoke) return;
-    try {
-      const changes = await invoke("check_volume_changes");
-      console.log("[Volume] Got changes:", changes.length);
-      if (Array.isArray(changes) && changes.length > 0) {
-        for (const change of changes) {
-          console.log("[Volume] Looking for device:", change.device_id);
-          console.log("[Volume] Available devices:", audioDevices.map(d => d.id));
-          const device = audioDevices.find(d => d.id === change.device_id);
-          if (device) {
-            device.volume = change.volume;
-            device.is_muted = change.is_muted;
-            updateDeviceCard(device);
-          } else {
-            console.log("[Volume] Device not found!");
-          }
+// Listen for volume change events from Rust backend
+if (window.__TAURI__ && window.__TAURI__.event) {
+  window.__TAURI__.event.listen('volume-changed', (event) => {
+    const changes = event.payload;
+    if (Array.isArray(changes)) {
+      for (const change of changes) {
+        const device = audioDevices.find(d => d.id === change.device_id);
+        if (device) {
+          device.volume = change.volume;
+          device.is_muted = change.is_muted;
+          updateDeviceCard(device);
         }
       }
-    } catch (e) {
-      console.error("[Volume] Polling error:", e);
     }
-  }, 300);
-}
-
-function stopVolumePolling() {
-  if (volumeRefreshInterval) {
-    clearInterval(volumeRefreshInterval);
-    volumeRefreshInterval = null;
-  }
+  });
 }
 
 function updateDeviceCard(device) {
-  console.log("[Volume] updateDeviceCard:", device.id, "volume:", device.volume);
   const cards = document.querySelectorAll('.audio-device-card');
-  console.log("[Volume] DOM cards:", cards.length);
   let targetCard = null;
   for (const card of cards) {
     if (card.dataset.deviceId === device.id) {
@@ -653,28 +620,21 @@ function updateDeviceCard(device) {
       break;
     }
   }
-  if (!targetCard) {
-    console.log("[Volume] NO CARD FOUND for device:", device.id);
-    return;
-  }
+  if (!targetCard) return;
 
   const slider = targetCard.querySelector('.volume-slider');
-  console.log("[Volume] slider:", !!slider, "activeElement is slider:", document.activeElement === slider);
   if (slider && document.activeElement !== slider) {
     slider.value = Math.round(device.volume * 100);
-    console.log("[Volume] slider.value set to:", slider.value);
   }
   const valueEl = targetCard.querySelector('.volume-value');
   if (valueEl) {
     valueEl.textContent = `${Math.round(device.volume * 100)}%`;
-    console.log("[Volume] valueEl text set to:", valueEl.textContent);
   }
   const muteBtn = targetCard.querySelector('.mute-btn');
   if (muteBtn) {
     muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
     muteBtn.innerHTML = device.is_muted ? getMuteIcon() : getVolumeIcon();
   }
-  console.log("[Volume] updateDeviceCard DONE");
 }
 
 async function loadAudioDevices() {

@@ -79,6 +79,8 @@ fn main() {
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;
+            // Start volume change watcher
+            crate::audio::start_volume_watcher(app.handle().clone());
             if !is_autostart {
                 popup::toggle(app.handle());
             }

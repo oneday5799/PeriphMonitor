@@ -3,6 +3,7 @@ use std::ptr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tauri::Emitter;
+use tokio::sync::mpsc;
 use windows::core::*;
 use windows::Win32::Foundation::BOOL;
 use windows::Win32::Media::Audio::Endpoints::*;
@@ -50,11 +51,24 @@ struct VolumeState {
 }
 
 /// Start background thread to monitor volume changes
-/// Emits "volume-changed" events to Tauri frontend
+/// Uses channel + tokio task to properly emit events
 pub fn start_volume_watcher(app_handle: tauri::AppHandle) {
     // Initialize volume state first
     let _ = enumerate_output_devices();
 
+    // Create channel for communication
+    let (tx, mut rx) = mpsc::channel::<Vec<VolumeChangeEvent>>(32);
+
+    // Spawn tokio task to receive and emit events
+    tauri::async_runtime::spawn(async move {
+        while let Some(changes) = rx.recv().await {
+            if !changes.is_empty() {
+                let _ = app_handle.emit("volume-changed", &changes);
+            }
+        }
+    });
+
+    // Spawn background thread to monitor volume
     thread::spawn(move || {
         // Initialize COM for this thread
         unsafe {
@@ -67,8 +81,10 @@ pub fn start_volume_watcher(app_handle: tauri::AppHandle) {
             let changes = check_volume_changes_internal();
 
             if !changes.is_empty() {
-                // Emit event to frontend
-                let _ = app_handle.emit("volume-changed", &changes);
+                // Send to tokio task via channel
+                if tx.blocking_send(changes).is_err() {
+                    break; // Channel closed, exit thread
+                }
             }
         }
     });
@@ -83,8 +99,6 @@ fn check_volume_changes_internal() -> Vec<VolumeChangeEvent> {
             if let Ok(collection) = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) {
                 if let Ok(count) = collection.GetCount() {
                     if let Ok(mut state) = VOLUME_STATE.lock() {
-                        eprintln!("[Audio] Checking {} devices, state has {} entries", count, state.len());
-
                         for i in 0..count {
                             if let Ok(device) = collection.Item(i) {
                                 if let Ok(id) = device.GetId() {
@@ -93,7 +107,6 @@ fn check_volume_changes_internal() -> Vec<VolumeChangeEvent> {
                                         let existing = state.iter().find(|s| s.device_id == id_str);
                                         if let Some(old) = existing {
                                             if (old.volume - volume).abs() > 0.001 || old.is_muted != is_muted {
-                                                eprintln!("[Audio] Volume changed: {} {} -> {}", id_str, old.volume, volume);
                                                 changes.push(VolumeChangeEvent {
                                                     device_id: id_str.clone(),
                                                     volume,
