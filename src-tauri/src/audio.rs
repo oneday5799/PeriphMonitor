@@ -160,8 +160,9 @@ pub fn enumerate_audio_sessions(_device_id: &str) -> Result<Vec<AudioSession>> {
                         let is_muted = simple_volume.GetMute().map(|b| b.as_bool()).unwrap_or(false);
                         let session_name = get_session_display_name(&session_control).unwrap_or_default();
                         let display_name = if !session_name.is_empty() && session_name != "Unknown App" { session_name } else { format!("App (PID: {})", pid) };
+                        let icon = crate::app_icon::get_app_icon_by_pid(pid).unwrap_or_default();
                         if all_sessions.iter().any(|s: &AudioSession| s.pid == pid) { continue; }
-                        all_sessions.push(AudioSession { id: session_id, name: display_name, icon: String::new(), pid, volume, is_muted, device_id: dev_id.clone() });
+                        all_sessions.push(AudioSession { id: session_id, name: display_name, icon, pid, volume, is_muted, device_id: dev_id.clone() });
                     }
                 }
             }
