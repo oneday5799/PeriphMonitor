@@ -83,7 +83,7 @@ type BtDeviceInfo = (String, bool, String);
 fn classic_device_from_info(device_info: &DeviceInformation) -> Option<BtDeviceInfo> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
     let device_id = device_info.Id().ok()?;
-    let device = BluetoothDevice::FromIdAsync(&device_id).ok()?.get().ok()?;
+    let device = BluetoothDevice::FromIdAsync(&device_id).ok()?.join().ok()?;
     let name = device.Name().ok()?.to_string();
     let connected = device.ConnectionStatus().ok()? == BluetoothConnectionStatus::Connected;
     Some((name, connected, device_id.to_string()))
@@ -93,7 +93,7 @@ fn classic_device_from_info(device_info: &DeviceInformation) -> Option<BtDeviceI
 fn ble_device_from_info(device_info: &DeviceInformation) -> Option<BtDeviceInfo> {
     use windows::Devices::Bluetooth::BluetoothConnectionStatus;
     let device_id = device_info.Id().ok()?;
-    let device = BluetoothLEDevice::FromIdAsync(&device_id).ok()?.get().ok()?;
+    let device = BluetoothLEDevice::FromIdAsync(&device_id).ok()?.join().ok()?;
     let name = device.Name().ok()?.to_string();
     let connected = device.ConnectionStatus().ok()? == BluetoothConnectionStatus::Connected;
     Some((name, connected, device_id.to_string()))
@@ -104,7 +104,7 @@ pub fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, 
 
     // Classic Bluetooth devices
     let btc_selector = BluetoothDevice::GetDeviceSelectorFromPairingState(true)?;
-    let btc_devices_info = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector)?.get()?;
+    let btc_devices_info = DeviceInformation::FindAllAsyncAqsFilter(&btc_selector)?.join()?;
     for device_info in btc_devices_info.into_iter() {
         if let Some((name, connected, device_id)) = classic_device_from_info(&device_info) {
             let battery = read_btc_battery_from_device_id(&device_id);
@@ -114,7 +114,7 @@ pub fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, 
 
     // BLE devices
     let ble_selector = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true)?;
-    let ble_devices_info = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector)?.get()?;
+    let ble_devices_info = DeviceInformation::FindAllAsyncAqsFilter(&ble_selector)?.join()?;
     for device_info in ble_devices_info.into_iter() {
         if let Some((name, connected, device_id)) = ble_device_from_info(&device_info) {
             let battery = read_ble_battery_from_id(&device_id);
@@ -128,7 +128,7 @@ pub fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, 
 fn read_ble_battery_from_id(device_id: &str) -> Option<u8> {
     let hstr = windows::core::HSTRING::from(device_id);
     let future = BluetoothLEDevice::FromIdAsync(&hstr).ok()?;
-    let device = future.get().ok()?;
+    let device = future.join().ok()?;
     read_ble_battery(&device)
 }
 
@@ -141,13 +141,13 @@ fn read_ble_battery(ble_device: &BluetoothLEDevice) -> Option<u8> {
     let battery_service = GattServiceUuids::Battery().ok()?;
     let battery_level = GattCharacteristicUuids::BatteryLevel().ok()?;
 
-    let services = ble_device.GetGattServicesForUuidAsync(battery_service).ok()?.get().ok()?;
+    let services = ble_device.GetGattServicesForUuidAsync(battery_service).ok()?.join().ok()?;
     let service = services.Services().ok()?.into_iter().next()?;
 
-    let chars = service.GetCharacteristicsForUuidAsync(battery_level).ok()?.get().ok()?;
+    let chars = service.GetCharacteristicsForUuidAsync(battery_level).ok()?.join().ok()?;
     let char = chars.Characteristics().ok()?.into_iter().next()?;
 
-    let buffer = char.ReadValueAsync().ok()?.get().ok()?.Value().ok()?;
+    let buffer = char.ReadValueAsync().ok()?.join().ok()?.Value().ok()?;
     let reader = DataReader::FromBuffer(&buffer).ok()?;
     let level = reader.ReadByte().ok()?;
     Some(level)

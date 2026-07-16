@@ -5,11 +5,10 @@ use std::thread;
 use tauri::Emitter;
 use tokio::sync::mpsc;
 use windows::core::*;
-use windows::Win32::Foundation::BOOL;
+use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::Endpoints::*;
 use windows::Win32::Media::Audio::*;
 use windows::Win32::System::Com::*;
-use windows::Win32::UI::Shell::PropertiesSystem::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioDevice { pub id: String, pub name: String, pub volume: f32, pub is_muted: bool, pub is_default: bool }
@@ -98,17 +97,18 @@ pub fn enumerate_output_devices() -> Result<Vec<AudioDevice>> {
 
 unsafe fn get_device_volume_state(device: &IMMDevice) -> Result<(f32, bool)> {
     let endpoint: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)?;
-    Ok((endpoint.GetMasterVolumeLevelScalar()?, endpoint.GetMute()?.as_bool()))
+    let mute = endpoint.GetMute()?;
+    Ok((endpoint.GetMasterVolumeLevelScalar()?, mute.as_bool()))
 }
 
 unsafe fn get_device_name(device: &IMMDevice) -> Result<String> {
     let store = device.OpenPropertyStore(STGM(0))?;
     let key = PROPERTYKEY { fmtid: GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0), pid: 14 };
-    let value = store.GetValue(&key)?;
+    let value = unsafe { store.GetValue(&key as *const _) }?;
     let name = format!("{}", value).trim().to_string();
     if name.is_empty() {
         let key_desc = PROPERTYKEY { fmtid: GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0), pid: 2 };
-        let value_desc = store.GetValue(&key_desc)?;
+        let value_desc = unsafe { store.GetValue(&key_desc as *const _) }?;
         let name_desc = format!("{}", value_desc).trim().to_string();
         if !name_desc.is_empty() { return Ok(name_desc); }
         return Ok("Unknown Audio Device".to_string());
@@ -134,7 +134,7 @@ pub fn toggle_device_mute(device_id: &str) -> Result<()> {
         let device = enumerator.GetDevice(&HSTRING::from(device_id))?;
         let endpoint: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)?;
         let current = endpoint.GetMute()?;
-        endpoint.SetMute(if current == BOOL::from(true) { BOOL::from(false) } else { BOOL::from(true) }, ptr::null())?;
+        endpoint.SetMute(!current.as_bool(), ptr::null())?;
     }
     Ok(())
 }
@@ -164,7 +164,7 @@ pub fn enumerate_audio_sessions(_device_id: &str) -> Result<Vec<AudioSession>> {
                         let session_id = get_session_id(&session_control2).unwrap_or_default();
                         let simple_volume: ISimpleAudioVolume = match session_control.cast() { Ok(v) => v, Err(_) => continue };
                         let volume = simple_volume.GetMasterVolume().unwrap_or(0.0);
-                        let is_muted = simple_volume.GetMute().unwrap_or(BOOL::from(false)) == BOOL::from(true);
+                        let is_muted = simple_volume.GetMute().map(|b| b.as_bool()).unwrap_or(false);
                         let session_name = get_session_display_name(&session_control).unwrap_or_default();
                         let display_name = if !session_name.is_empty() && session_name != "Unknown App" { session_name } else { format!("App (PID: {})", pid) };
                         if all_sessions.iter().any(|s: &AudioSession| s.pid == pid) { continue; }
@@ -227,8 +227,8 @@ pub fn toggle_session_mute(session_id: &str) -> Result<()> {
                         let sc2: IAudioSessionControl2 = match sc.cast() { Ok(s) => s, Err(_) => continue };
                         if get_session_id(&sc2).unwrap_or_default() == session_id {
                             let sv: ISimpleAudioVolume = match sc.cast() { Ok(v) => v, Err(_) => continue };
-                            let current = sv.GetMute().unwrap_or(BOOL::from(false));
-                            let _ = sv.SetMute(if current == BOOL::from(true) { BOOL::from(false) } else { BOOL::from(true) }, ptr::null());
+                            let current = sv.GetMute().map(|b| b.as_bool()).unwrap_or(false);
+                            let _ = sv.SetMute(!current, ptr::null());
                             return Ok(());
                         }
                     }
