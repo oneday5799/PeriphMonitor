@@ -5,11 +5,7 @@ let deviceNames = {};
 let deviceGroups = {};
 let useSystemBt = false;
 let trayDevices = [];
-let audioDevices = [];
-let audioSessions = [];
-let selectedDeviceId = null;
 
-// Debounce helper
 function debounce(fn, delay) {
   let timer = null;
   return function(...args) {
@@ -96,15 +92,12 @@ function renderDevices() {
     groups[group].push(d);
   }
 
-  // Sort devices within each group: connected first, then paired, then non-BT/2.4G
   for (const group of Object.keys(groups)) {
     groups[group].sort((a, b) => {
       const getSortKey = (dev) => {
-        // Bluetooth or 2.4G devices: connected first, paired middle
         if (dev.is_bluetooth || dev.is_wireless_24g) {
           return dev.status === "已连接" ? 0 : 1;
         }
-        // Non-BT/2.4G devices: last
         return 2;
       };
       return getSortKey(a) - getSortKey(b);
@@ -130,7 +123,6 @@ function renderDevices() {
       const card = document.createElement("div");
       card.className = "device-card";
 
-      // Device info container (name + status)
       const infoEl = document.createElement("div");
       infoEl.className = "device-info";
 
@@ -142,7 +134,6 @@ function renderDevices() {
       const statusRow = document.createElement("div");
       statusRow.className = "device-status-row";
 
-      // Only show connection status for Bluetooth or 2.4G devices
       if (dev.is_bluetooth || dev.is_wireless_24g) {
         const statusEl = document.createElement("div");
         statusEl.className = "device-status";
@@ -155,7 +146,6 @@ function renderDevices() {
         statusRow.appendChild(statusEl);
       }
 
-      // Connection type label
       if (dev.is_bluetooth) {
         const tagEl = document.createElement("div");
         tagEl.className = "tag-bluetooth";
@@ -178,7 +168,6 @@ function renderDevices() {
       infoEl.appendChild(statusRow);
       card.appendChild(infoEl);
 
-      // Connect/disconnect button for Bluetooth devices
       if (dev.is_bluetooth && (dev.status === "已配对" || dev.status === "已连接")) {
         const actionsEl = document.createElement("div");
         actionsEl.className = "device-actions";
@@ -199,7 +188,6 @@ function renderDevices() {
 
           const isConnect = connectBtn.dataset.action === "connect";
 
-          // If system BT mode is enabled, open Windows Bluetooth settings instead
           if (useSystemBt) {
             try {
               await invoke("open_bt_settings");
@@ -209,11 +197,9 @@ function renderDevices() {
             return;
           }
 
-          // Disable button and show loading state
           connectBtn.disabled = true;
           connectBtn.classList.add("loading");
 
-          // Update status text to show loading, hide battery
           const statusEl = card.querySelector(".device-status");
           const batteryEl = card.querySelector(".device-battery");
           if (statusEl) {
@@ -234,14 +220,12 @@ function renderDevices() {
             console.error("BT action failed:", err);
           }
 
-          // Poll for status change with short interval
           const expectedConnected = isConnect;
           let newStatus = oldStatus;
           let statusChanged = false;
-          // Connect needs initial delay for BT stack to stabilize; disconnect is instant
           const initialDelay = isConnect ? 800 : 100;
           await new Promise(r => setTimeout(r, initialDelay));
-          const maxAttempts = 10; // 10 * 400ms = 4s max
+          const maxAttempts = 10;
           for (let i = 0; i < maxAttempts; i++) {
             try {
               const connected = await invoke("check_bt_connection", { name: dev.name });
@@ -259,20 +243,17 @@ function renderDevices() {
             await new Promise(r => setTimeout(r, 400));
           }
 
-          // Full refresh to get battery info and device list
           try {
             allDevices = await invoke("get_devices");
           } catch (err) {
             console.error("Refresh failed:", err);
           }
 
-          // Use polling result if it detected change, otherwise use refresh result
           const refreshed = allDevices.find(d => d.name === dev.name);
           if (!statusChanged && refreshed) {
             newStatus = refreshed.status;
           }
 
-          // Update only this card's status and button in-place
           const newStatusEl = card.querySelector(".device-status");
           const newBatteryEl = card.querySelector(".device-battery");
           if (newStatusEl) {
@@ -335,7 +316,6 @@ function showContextMenu(x, y, dev) {
   const menu = document.createElement("div");
   menu.className = "context-menu";
 
-  // Rename option
   const renameItem = document.createElement("div");
   renameItem.className = "context-menu-item";
   renameItem.textContent = "重命名";
@@ -345,7 +325,6 @@ function showContextMenu(x, y, dev) {
   });
   menu.appendChild(renameItem);
 
-  // Change group option
   const groupItem = document.createElement("div");
   groupItem.className = "context-menu-item";
   groupItem.textContent = "更改分组";
@@ -355,7 +334,6 @@ function showContextMenu(x, y, dev) {
   });
   menu.appendChild(groupItem);
 
-  // Hide option
   const hideItem = document.createElement("div");
   hideItem.className = "context-menu-item";
   hideItem.textContent = "隐藏";
@@ -368,7 +346,6 @@ function showContextMenu(x, y, dev) {
   });
   menu.appendChild(hideItem);
 
-  // Tray option
   const isTray = trayDevices.includes(dev.name);
   const trayItem = document.createElement("div");
   trayItem.className = "context-menu-item";
@@ -390,7 +367,6 @@ function showContextMenu(x, y, dev) {
 
   document.body.appendChild(menu);
 
-  // Smart boundary avoidance
   const menuW = menu.offsetWidth;
   const menuH = menu.offsetHeight;
   let posX = x;
@@ -554,7 +530,6 @@ function hideContextMenu() {
 
 document.addEventListener("click", hideContextMenu);
 
-// Refresh button - only refresh current tab
 document.getElementById("btn-refresh").addEventListener("click", () => {
   const activeTab = document.querySelector('.tab-title.active');
   if (activeTab) {
@@ -577,12 +552,10 @@ document.getElementById("btn-settings").addEventListener("click", async () => {
   }
 });
 
-// Refresh config and devices when window regains focus
 window.addEventListener("focus", async () => {
   const invoke = getInvoke();
   if (!invoke) return;
   try {
-    // 保存当前滚动位置
     const volumeTab = document.getElementById('tab-volume');
     const deviceTab = document.getElementById('tab-devices');
     const scrollTop = (volumeTab.style.display !== 'none' ? volumeTab : deviceTab).scrollTop;
@@ -596,14 +569,12 @@ window.addEventListener("focus", async () => {
     trayDevices = cfg.tray_devices || [];
     allDevices = await invoke("get_devices");
     renderDevices();
-    // 如果当前在音量页面，刷新应用音量列表
     if (volumeTab.style.display !== 'none') {
       await loadAudioDevices();
       if (selectedDeviceId) {
         await loadAudioSessions(selectedDeviceId);
       }
     }
-    // 恢复滚动位置
     (volumeTab.style.display !== 'none' ? volumeTab : deviceTab).scrollTop = scrollTop;
   } catch (e) {
     console.error("Failed to refresh on focus:", e);
@@ -618,7 +589,6 @@ if (window.__TAURI__) {
   });
 }
 
-// Tab switching
 document.querySelectorAll('.tab-title').forEach(tab => {
   tab.addEventListener('click', async () => {
     document.querySelectorAll('.tab-title').forEach(t => t.classList.remove('active'));
@@ -628,538 +598,9 @@ document.querySelectorAll('.tab-title').forEach(tab => {
     document.getElementById('tab-volume').style.display = tabName === 'volume' ? 'block' : 'none';
     if (tabName === 'volume') {
       await loadAudioDevices();
-      // 刷新应用音量列表
       if (selectedDeviceId) {
         await loadAudioSessions(selectedDeviceId);
       }
     }
   });
 });
-
-function updateSessionCard(session) {
-  const cards = document.querySelectorAll('.audio-session-card');
-  for (const card of cards) {
-    if (card.dataset.sessionId === session.id) {
-      const slider = card.querySelector('.volume-slider');
-      if (slider && document.activeElement !== slider) {
-        slider.value = Math.round(session.volume * 100);
-        updateSliderGradient(slider);
-      }
-      const valueEl = card.querySelector('.volume-value');
-      if (valueEl) {
-        valueEl.textContent = `${Math.round(session.volume * 100)}%`;
-      }
-      const muteBtn = card.querySelector('.mute-btn');
-      if (muteBtn) {
-        muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
-        muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
-      }
-      break;
-    }
-  }
-}
-
-// Listen for volume change events from Rust backend
-if (window.__TAURI__ && window.__TAURI__.event) {
-  window.__TAURI__.event.listen('volume-changed', (event) => {
-    const changes = event.payload;
-    if (Array.isArray(changes)) {
-      for (const change of changes) {
-        // Check if it's a device change
-        const device = audioDevices.find(d => d.id === change.device_id);
-        if (device) {
-          device.volume = change.volume;
-          device.is_muted = change.is_muted;
-          updateDeviceCard(device);
-        }
-        // Check if it's a session change
-        if (change.session_id) {
-          const session = audioSessions.find(s => s.id === change.session_id);
-          if (session) {
-            session.volume = change.volume;
-            session.is_muted = change.is_muted;
-            updateSessionCard(session);
-          }
-        }
-      }
-    }
-  });
-}
-
-function updateDeviceCard(device) {
-  const cards = document.querySelectorAll('.audio-device-card');
-  let targetCard = null;
-  for (const card of cards) {
-    if (card.dataset.deviceId === device.id) {
-      targetCard = card;
-      break;
-    }
-  }
-  if (!targetCard) return;
-
-  const slider = targetCard.querySelector('.volume-slider');
-  if (slider && document.activeElement !== slider) {
-    slider.value = Math.round(device.volume * 100);
-    updateSliderGradient(slider);
-  }
-  const valueEl = targetCard.querySelector('.volume-value');
-  if (valueEl) {
-    valueEl.textContent = `${Math.round(device.volume * 100)}%`;
-  }
-  const muteBtn = targetCard.querySelector('.mute-btn');
-  if (muteBtn) {
-    muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
-    muteBtn.innerHTML = device.is_muted ? getMuteIcon() : getVolumeIcon();
-  }
-}
-
-function updateSliderGradient(slider) {
-  const value = slider.value;
-  const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
-  // Update the track pseudo-element's background
-  slider.style.setProperty('--track-color', `linear-gradient(to right, #0078d7 0%, #0078d7 ${percentage}%, #e0e0e0 ${percentage}%, #e0e0e0 100%)`);
-}
-
-async function loadAudioDevices() {
-  const list = document.getElementById("audio-device-list");
-  const invoke = getInvoke();
-  if (!invoke) {
-    return;
-  }
-  try {
-    const devices = await invoke("get_audio_devices");
-    console.log("[Volume] Loaded devices:", JSON.stringify(devices.map(d => ({id: d.id, name: d.name, volume: d.volume}))));
-    audioDevices = devices;
-    renderAudioDevices();
-    if (audioDevices.length > 0 && !selectedDeviceId) {
-      selectDevice(audioDevices[0].id);
-    }
-  } catch (e) {
-    // 仅在没有现有内容时显示错误
-    if (list.querySelectorAll('.audio-device-card').length === 0) {
-      list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
-    }
-  }
-}
-
-function renderAudioDevices() {
-  const list = document.getElementById("audio-device-list");
-  if (audioDevices.length === 0) {
-    list.innerHTML = '<div class="loading">没有检测到音频设备</div>';
-    return;
-  }
-
-  // 清除加载指示器
-  list.querySelectorAll('.loading').forEach(el => el.remove());
-
-  // 获取现有卡片
-  const existingCards = new Map();
-  list.querySelectorAll('.audio-device-card').forEach(card => {
-    existingCards.set(card.dataset.deviceId, card);
-  });
-
-  const newIds = new Set(audioDevices.map(d => d.id));
-
-  // 移除不再存在的卡片
-  existingCards.forEach((card, id) => {
-    if (!newIds.has(id)) {
-      card.remove();
-    }
-  });
-
-  // 更新或添加卡片
-  for (const device of audioDevices) {
-    let card = existingCards.get(device.id);
-
-    if (card) {
-      // 更新现有卡片
-      updateAudioDeviceCard(card, device);
-    } else {
-      // 创建新卡片
-      card = createAudioDeviceCard(device);
-      list.appendChild(card);
-    }
-  }
-}
-
-function createAudioDeviceCard(device) {
-  const card = document.createElement("div");
-  card.className = "audio-device-card";
-  card.dataset.deviceId = device.id;
-  if (device.id === selectedDeviceId) {
-    card.classList.add("selected");
-  }
-
-  const header = document.createElement("div");
-  header.className = "audio-device-header";
-
-  const nameEl = document.createElement("div");
-  nameEl.className = "audio-device-name" + (device.is_default ? " default" : "");
-  nameEl.textContent = device.name;
-  if (device.is_default) {
-    const badge = document.createElement("span");
-    badge.className = "default-badge";
-    badge.textContent = "(默认)";
-    nameEl.appendChild(badge);
-  }
-  // 点击设备名称切换默认设备
-  nameEl.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (nameEl.classList.contains("default")) return;
-    const invoke = getInvoke();
-    if (!invoke) return;
-    try {
-      // 立即更新标记
-      nameEl.classList.add("default");
-      if (!nameEl.querySelector('.default-badge')) {
-        const badge = document.createElement("span");
-        badge.className = "default-badge";
-        badge.textContent = "(默认)";
-        nameEl.appendChild(badge);
-      }
-      await invoke("set_default_device", { deviceId: device.id });
-      // 等待音频引擎同步
-      await new Promise(r => setTimeout(r, 500));
-      await loadAudioDevices();
-      selectDevice(device.id);
-    } catch (err) {
-      nameEl.classList.remove("default");
-      const badge = nameEl.querySelector('.default-badge');
-      if (badge) badge.remove();
-      console.error("Failed to set default device:", err);
-    }
-  });
-  header.appendChild(nameEl);
-  card.appendChild(header);
-
-  const controls = document.createElement("div");
-  controls.className = "audio-device-controls";
-
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.className = "volume-slider";
-  slider.min = "0";
-  slider.max = "100";
-  slider.value = Math.round(device.volume * 100);
-
-  const throttledSetDeviceVolume = throttle(async (id, vol) => {
-    await setDeviceVolume(id, vol);
-  }, 150);
-
-  slider.addEventListener("input", (e) => {
-    const value = parseInt(e.target.value) / 100;
-    device.volume = value;
-    updateVolumeDisplay(device.id, e.target.value);
-    updateSliderGradient(e.target);
-    throttledSetDeviceVolume(device.id, value);
-  });
-  updateSliderGradient(slider);
-  controls.appendChild(slider);
-
-  const valueEl = document.createElement("span");
-  valueEl.className = "volume-value";
-  valueEl.id = `volume-value-${device.id}`;
-  valueEl.textContent = `${Math.round(device.volume * 100)}%`;
-  controls.appendChild(valueEl);
-
-  const muteBtn = document.createElement("button");
-  muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
-  muteBtn.innerHTML = device.is_muted ? getMuteIcon() : getVolumeIcon();
-  muteBtn.addEventListener("click", () => toggleDeviceMute(device.id));
-  controls.appendChild(muteBtn);
-
-  card.appendChild(controls);
-
-  // Click to select device and show its sessions
-  card.addEventListener("click", (e) => {
-    if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
-      selectDevice(device.id);
-    }
-  });
-
-  return card;
-}
-
-function updateAudioDeviceCard(card, device) {
-  // 更新选中状态
-  if (device.id === selectedDeviceId) {
-    card.classList.add("selected");
-  } else {
-    card.classList.remove("selected");
-  }
-
-  // 更新默认设备标记
-  const nameEl = card.querySelector('.audio-device-name');
-  if (nameEl) {
-    if (device.is_default) {
-      nameEl.classList.add("default");
-      if (!nameEl.querySelector('.default-badge')) {
-        const badge = document.createElement("span");
-        badge.className = "default-badge";
-        badge.textContent = "(默认)";
-        nameEl.appendChild(badge);
-      }
-    } else {
-      nameEl.classList.remove("default");
-      const badge = nameEl.querySelector('.default-badge');
-      if (badge) badge.remove();
-    }
-  }
-
-  // 更新音量滑块（仅当用户未在拖动时）
-  const slider = card.querySelector('.volume-slider');
-  if (slider && document.activeElement !== slider) {
-    slider.value = Math.round(device.volume * 100);
-    updateSliderGradient(slider);
-  }
-
-  // 更新音量显示
-  const valueEl = card.querySelector('.volume-value');
-  if (valueEl) {
-    valueEl.textContent = `${Math.round(device.volume * 100)}%`;
-  }
-
-  // 更新静音按钮
-  const muteBtn = card.querySelector('.mute-btn');
-  if (muteBtn) {
-    muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
-    muteBtn.innerHTML = device.is_muted ? getMuteIcon() : getVolumeIcon();
-  }
-}
-
-function selectDevice(deviceId) {
-  selectedDeviceId = deviceId;
-  renderAudioDevices();
-  loadAudioSessions(deviceId);
-}
-
-async function loadAudioSessions(deviceId) {
-  const list = document.getElementById("audio-session-list");
-  const invoke = getInvoke();
-  if (!invoke) {
-    return;
-  }
-  try {
-    audioSessions = await invoke("get_audio_sessions", { deviceId });
-    renderAudioSessions();
-  } catch (e) {
-    // 仅在没有现有内容时显示错误
-    if (list.querySelectorAll('.audio-session-card').length === 0) {
-      list.innerHTML = `<div class="loading">加载失败: ${e}</div>`;
-    }
-  }
-}
-
-function renderAudioSessions() {
-  const list = document.getElementById("audio-session-list");
-  if (audioSessions.length === 0) {
-    list.innerHTML = '<div class="loading">没有正在播放的应用</div>';
-    return;
-  }
-
-  // 清除加载指示器
-  list.querySelectorAll('.loading').forEach(el => el.remove());
-
-  // 获取现有卡片
-  const existingCards = new Map();
-  list.querySelectorAll('.audio-session-card').forEach(card => {
-    existingCards.set(card.dataset.sessionId, card);
-  });
-
-  const newIds = new Set(audioSessions.map(s => s.id));
-
-  // 移除不再存在的卡片
-  existingCards.forEach((card, id) => {
-    if (!newIds.has(id)) {
-      card.remove();
-    }
-  });
-
-  // 更新或添加卡片
-  for (const session of audioSessions) {
-    let card = existingCards.get(session.id);
-
-    if (card) {
-      // 更新现有卡片
-      updateAudioSessionCard(card, session);
-    } else {
-      // 创建新卡片
-      card = createAudioSessionCard(session);
-      list.appendChild(card);
-    }
-  }
-}
-
-function createAudioSessionCard(session) {
-  const card = document.createElement("div");
-  card.className = "audio-session-card";
-  card.dataset.sessionId = session.id;
-
-  const iconEl = document.createElement("div");
-  iconEl.className = "session-icon";
-  if (session.icon && session.icon.length > 100) {
-    const img = document.createElement("img");
-    img.src = `data:image/png;base64,${session.icon}`;
-    img.style.width = "100%";
-    img.style.height = "100%";
-    img.style.borderRadius = "4px";
-    img.onerror = () => { iconEl.textContent = session.name.charAt(0).toUpperCase(); };
-    iconEl.appendChild(img);
-  } else {
-    iconEl.textContent = session.name.charAt(0).toUpperCase();
-    iconEl.style.background = stringToColor(session.name);
-    iconEl.style.color = "#fff";
-    iconEl.style.fontWeight = "bold";
-  }
-  card.appendChild(iconEl);
-
-  const controls = document.createElement("div");
-  controls.className = "session-controls";
-
-  const slider = document.createElement("input");
-  slider.type = "range";
-  slider.className = "volume-slider session-slider";
-  slider.min = "0";
-  slider.max = "100";
-  slider.value = Math.round(session.volume * 100);
-
-  const throttledSetSessionVolume = throttle(async (sessionId, vol) => {
-    await setSessionVolume(sessionId, vol);
-  }, 100);
-
-  slider.addEventListener("input", async (e) => {
-    const value = parseInt(e.target.value) / 100;
-    // 更新本地状态中的音量
-    const sess = audioSessions.find(s => s.id === card.dataset.sessionId);
-    if (sess) sess.volume = value;
-    updateSliderGradient(e.target);
-    const valEl = card.querySelector('.volume-value');
-    if (valEl) valEl.textContent = `${e.target.value}%`;
-    throttledSetSessionVolume(card.dataset.sessionId, value);
-  });
-  updateSliderGradient(slider);
-  controls.appendChild(slider);
-
-  const valueEl = document.createElement("span");
-  valueEl.className = "volume-value";
-  valueEl.textContent = `${Math.round(session.volume * 100)}%`;
-  controls.appendChild(valueEl);
-
-  const muteBtn = document.createElement("button");
-  muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
-  muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
-  muteBtn.addEventListener("click", async () => {
-    const sessionId = card.dataset.sessionId;
-    await toggleSessionMute(sessionId);
-    // 更新本地状态
-    const sess = audioSessions.find(s => s.id === sessionId);
-    if (sess) {
-      sess.is_muted = !sess.is_muted;
-      muteBtn.className = "mute-btn" + (sess.is_muted ? " muted" : "");
-      muteBtn.innerHTML = sess.is_muted ? getMuteIcon() : getVolumeIcon();
-    }
-  });
-  controls.appendChild(muteBtn);
-
-  card.appendChild(controls);
-  return card;
-}
-
-function updateAudioSessionCard(card, session) {
-  // 更新音量滑块（仅当用户未在拖动时）
-  const slider = card.querySelector('.volume-slider');
-  if (slider && document.activeElement !== slider) {
-    slider.value = Math.round(session.volume * 100);
-    updateSliderGradient(slider);
-  }
-
-  // 更新音量显示
-  const valueEl = card.querySelector('.volume-value');
-  if (valueEl) {
-    valueEl.textContent = `${Math.round(session.volume * 100)}%`;
-  }
-
-  // 更新静音按钮
-  const muteBtn = card.querySelector('.mute-btn');
-  if (muteBtn) {
-    muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
-    muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
-  }
-}
-
-async function setDeviceVolume(deviceId, volume) {
-  const invoke = getInvoke();
-  if (!invoke) return;
-  try {
-    await invoke("set_device_volume", { deviceId, volume });
-  } catch (e) {
-    console.error("Failed to set volume:", e);
-  }
-}
-
-async function toggleDeviceMute(deviceId) {
-  const invoke = getInvoke();
-  if (!invoke) return;
-  try {
-    await invoke("toggle_device_mute", { deviceId });
-    const device = audioDevices.find(d => d.id === deviceId);
-    if (device) {
-      device.is_muted = !device.is_muted;
-      renderAudioDevices();
-    }
-  } catch (e) {
-    console.error("Failed to toggle mute:", e);
-  }
-}
-
-async function setSessionVolume(sessionId, volume) {
-  const invoke = getInvoke();
-  if (!invoke) return;
-  try {
-    await invoke("set_session_volume", { sessionId, volume });
-  } catch (e) {
-    console.error("Failed to set session volume:", e);
-  }
-}
-
-async function toggleSessionMute(sessionId) {
-  const invoke = getInvoke();
-  if (!invoke) return;
-  try {
-    await invoke("toggle_session_mute", { sessionId });
-  } catch (e) {
-    console.error("Failed to toggle session mute:", e);
-  }
-}
-
-function updateVolumeDisplay(deviceId, value) {
-  const valueEl = document.getElementById(`volume-value-${deviceId}`);
-  if (valueEl) {
-    valueEl.textContent = `${value}%`;
-  }
-}
-
-function getVolumeIcon() {
-  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-  </svg>`;
-}
-
-function getMuteIcon() {
-  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-    <line x1="23" y1="9" x2="17" y2="15"/>
-    <line x1="17" y1="9" x2="23" y2="15"/>
-  </svg>`;
-}
-
-function stringToColor(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 60%, 50%)`;
-}

@@ -1,3 +1,4 @@
+use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -57,6 +58,49 @@ pub fn open_with_system(path: &str) -> Result<(), String> {
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// 将字符串转换为 Windows 宽字符串 (null-terminated UTF-16)
+pub fn to_wide(s: &str) -> Vec<u16> {
+    std::ffi::OsStr::new(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+/// 打开旧版声音控制面板 (mmsys.cpl)
+pub fn open_sound_panel(panel: &str) {
+    let arg = format!("shell32.dll,Control_RunDLL mmsys.cpl,,{}", panel);
+    let wide_file = to_wide("rundll32.exe");
+    let wide_arg = to_wide(&arg);
+    let wide_verb = to_wide("open");
+    unsafe {
+        windows_sys::Win32::UI::Shell::ShellExecuteW(
+            std::ptr::null_mut(),
+            wide_verb.as_ptr(),
+            wide_file.as_ptr(),
+            wide_arg.as_ptr(),
+            std::ptr::null(),
+            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        );
+    }
+}
+
+/// 打开现代 Windows 设置页面 (ms-settings:)
+pub fn open_settings_page(page: &str) {
+    let url = format!("ms-settings:{}", page);
+    let wide_url = to_wide(&url);
+    let wide_verb = to_wide("open");
+    unsafe {
+        windows_sys::Win32::UI::Shell::ShellExecuteW(
+            std::ptr::null_mut(),
+            wide_verb.as_ptr(),
+            wide_url.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        );
+    }
 }
 
 /// 使用 PowerShell 执行脚本

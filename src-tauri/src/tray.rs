@@ -1,4 +1,3 @@
-use std::os::windows::ffi::OsStrExt;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use tauri::{
@@ -101,30 +100,22 @@ pub fn init_auto_start() {
     AUTO_START.store(config::with_config(|c| c.auto_start), Ordering::Relaxed);
 }
 
-pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri_plugin_autostart::ManagerExt;
-    let autostart = app.autolaunch();
-    let current = autostart.is_enabled().unwrap_or(false);
-    let wanted = AUTO_START.load(Ordering::Relaxed);
-    if wanted != current {
-        let _ = if wanted { autostart.enable() } else { autostart.disable() };
-    }
-
-    let auto_text = if wanted { "开机自启 ✓" } else { "开机自启" };
-
+/// 构建完整的顶层菜单
+fn build_full_menu(
+    app: &tauri::AppHandle,
+    audio_devices_menu: &Submenu<tauri::Wry>,
+) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+    let auto_text = if AUTO_START.load(Ordering::Relaxed) {
+        "开机自启 ✓"
+    } else {
+        "开机自启"
+    };
     let show_i = MenuItem::with_id(app, "show", "设备信息", true, None::<&str>)?;
     let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
     let about_i = MenuItem::with_id(app, "about", "关于", true, None::<&str>)?;
     let auto_i = MenuItem::with_id(app, "auto_start", auto_text, true, None::<&str>)?;
     let exit_i = MenuItem::with_id(app, "exit", "退出", true, None::<&str>)?;
-
-    // 构建音频设备切换子菜单
-    let audio_devices_menu = build_audio_devices_menu(app.handle())?;
-    let _ = AUDIO_DEVICES_SUBMENU.get_or_init(|| Mutex::new(Some(audio_devices_menu.clone())));
-
-    // 构建 Windows 声音设置子菜单
-    let win_sound_menu = build_windows_sound_settings_menu(app.handle())?;
-
+    let win_sound_menu = build_windows_sound_settings_menu(app)?;
     let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
 
     let sep1 = PredefinedMenuItem::separator(app)?;
@@ -136,7 +127,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         &[
             &show_i,
             &sep1,
-            &audio_devices_menu,
+            audio_devices_menu,
             &win_sound_menu,
             &sep2,
             &auto_i,
@@ -146,6 +137,23 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             &exit_i,
         ],
     )?;
+    Ok(menu)
+}
+
+pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_autostart::ManagerExt;
+    let autostart = app.autolaunch();
+    let current = autostart.is_enabled().unwrap_or(false);
+    let wanted = AUTO_START.load(Ordering::Relaxed);
+    if wanted != current {
+        let _ = if wanted { autostart.enable() } else { autostart.disable() };
+    }
+
+    // 构建音频设备切换子菜单
+    let audio_devices_menu = build_audio_devices_menu(app.handle())?;
+    let _ = AUDIO_DEVICES_SUBMENU.get_or_init(|| Mutex::new(Some(audio_devices_menu.clone())));
+
+    let menu = build_full_menu(app.handle(), &audio_devices_menu)?;
 
     let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(Image::from_bytes(include_bytes!("../icons/tray-icon.png"))
@@ -163,11 +171,9 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     let new_val = !old;
                     AUTO_START.store(new_val, Ordering::Relaxed);
                     config::with_config_mut(|c| c.auto_start = new_val);
-                    use tauri_plugin_autostart::ManagerExt;
                     let autostart = app.autolaunch();
                     let _ = if new_val { autostart.enable() } else { autostart.disable() };
-                    let text = if new_val { "开机自启 ✓" } else { "开机自启" };
-                    let _ = auto_i.set_text(text);
+                    update_auto_text();
                     let _ = app.emit("auto-start-changed", new_val);
                 }
                 "exit" => { std::process::exit(0); }
@@ -181,10 +187,10 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "win_sound_volume_mixer" => {
-                    let wide_file = to_wide("sndvol.exe");
-                    let wide_verb = to_wide("open");
+                    let wide_file = crate::process::to_wide("sndvol.exe");
+                    let wide_verb = crate::process::to_wide("open");
                     unsafe {
-                        let _ = windows_sys::Win32::UI::Shell::ShellExecuteW(
+                        windows_sys::Win32::UI::Shell::ShellExecuteW(
                             std::ptr::null_mut(),
                             wide_verb.as_ptr(),
                             wide_file.as_ptr(),
@@ -195,19 +201,19 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "win_sound_playback" => {
-                    let _ = open_sound_panel("playback");
+                    crate::process::open_sound_panel("playback");
                 }
                 "win_sound_recording" => {
-                    let _ = open_sound_panel("recording");
+                    crate::process::open_sound_panel("recording");
                 }
                 "win_sound_sounds" => {
-                    let _ = open_sound_panel("sounds");
+                    crate::process::open_sound_panel("sounds");
                 }
                 "win_sound_settings" => {
-                    let _ = open_settings_page("sound");
+                    crate::process::open_settings_page("sound");
                 }
                 "win_sound_app_volume" => {
-                    let _ = open_settings_page("apps-volume");
+                    crate::process::open_settings_page("apps-volume");
                 }
                 _ => {}
             }
@@ -322,39 +328,7 @@ pub fn update_audio_devices_menu() {
         Err(_) => return,
     };
 
-    // 重建顶层菜单，替换音频子菜单
-    let auto_text = if AUTO_START.load(Ordering::Relaxed) {
-        "开机自启 ✓"
-    } else {
-        "开机自启"
-    };
-    let Ok(show_i) = MenuItem::with_id(&app, "show", "设备信息", true, None::<&str>) else { return };
-    let Ok(settings_i) = MenuItem::with_id(&app, "settings", "设置", true, None::<&str>) else { return };
-    let Ok(about_i) = MenuItem::with_id(&app, "about", "关于", true, None::<&str>) else { return };
-    let Ok(auto_i) = MenuItem::with_id(&app, "auto_start", auto_text, true, None::<&str>) else { return };
-    let Ok(exit_i) = MenuItem::with_id(&app, "exit", "退出", true, None::<&str>) else { return };
-    let Ok(win_sound_menu) = build_windows_sound_settings_menu(&app) else { return };
-    let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
-
-    let Ok(sep1) = PredefinedMenuItem::separator(&app) else { return };
-    let Ok(sep2) = PredefinedMenuItem::separator(&app) else { return };
-    let Ok(sep3) = PredefinedMenuItem::separator(&app) else { return };
-
-    if let Ok(menu) = Menu::with_items(
-        &app,
-        &[
-            &show_i,
-            &sep1,
-            &new_submenu,
-            &win_sound_menu,
-            &sep2,
-            &auto_i,
-            &sep3,
-            &settings_i,
-            &about_i,
-            &exit_i,
-        ],
-    ) {
+    if let Ok(menu) = build_full_menu(&app, &new_submenu) {
         let _ = tray.set_menu(Some(menu));
     }
 
@@ -382,48 +356,4 @@ fn build_windows_sound_settings_menu(app: &tauri::AppHandle) -> Result<Submenu<t
         submenu.append(&item)?;
     }
     Ok(submenu)
-}
-
-/// 打开旧版声音控制面板 (mmsys.cpl)
-fn open_sound_panel(panel: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let arg = format!("shell32.dll,Control_RunDLL mmsys.cpl,,{}", panel);
-    let wide_file = to_wide("rundll32.exe");
-    let wide_arg = to_wide(&arg);
-    let wide_verb = to_wide("open");
-    unsafe {
-        windows_sys::Win32::UI::Shell::ShellExecuteW(
-            std::ptr::null_mut(),
-            wide_verb.as_ptr(),
-            wide_file.as_ptr(),
-            wide_arg.as_ptr(),
-            std::ptr::null(),
-            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-        );
-    }
-    Ok(())
-}
-
-/// 打开现代 Windows 设置页面 (ms-settings:)
-fn open_settings_page(page: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let url = format!("ms-settings:{}", page);
-    let wide_url = to_wide(&url);
-    let wide_verb = to_wide("open");
-    unsafe {
-        windows_sys::Win32::UI::Shell::ShellExecuteW(
-            std::ptr::null_mut(),
-            wide_verb.as_ptr(),
-            wide_url.as_ptr(),
-            std::ptr::null(),
-            std::ptr::null(),
-            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-        );
-    }
-    Ok(())
-}
-
-fn to_wide(s: &str) -> Vec<u16> {
-    std::ffi::OsStr::new(s)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect()
 }

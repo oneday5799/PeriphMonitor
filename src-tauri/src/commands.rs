@@ -1,8 +1,19 @@
 use crate::config::{self, Config};
-use crate::device::{self, Device};
+use crate::device;
 use crate::process;
 use crate::wmi_query::query_devices;
 use tauri::{Emitter, Manager};
+
+/// 在 tokio blocking 线程中执行阻塞操作
+async fn run_blocking<F, T>(f: F) -> Result<T, String>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| e.to_string())
+}
 
 /// 切换 Vec 中某个元素的存在/不存在
 fn toggle_vec_item(vec: &mut Vec<String>, item: &str) {
@@ -14,10 +25,8 @@ fn toggle_vec_item(vec: &mut Vec<String>, item: &str) {
 }
 
 #[tauri::command(async)]
-pub async fn get_devices() -> Vec<Device> {
-    let devices = tokio::task::spawn_blocking(query_devices)
-        .await
-        .unwrap_or_default();
+pub async fn get_devices() -> Vec<device::Device> {
+    let devices = run_blocking(query_devices).await.unwrap_or_default();
     device::store_device_ids(&devices);
     devices
 }
@@ -104,24 +113,21 @@ pub fn toggle_group_hidden(app: tauri::AppHandle, group: String) {
 
 #[tauri::command(async)]
 pub async fn disconnect_bluetooth_device(name: String) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || crate::bluetooth::bt_action(&name, "disconnect"))
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(move || crate::bluetooth::bt_action(&name, "disconnect"))
+        .await?
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub async fn connect_bluetooth_device(name: String) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || crate::bluetooth::bt_action(&name, "connect"))
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(move || crate::bluetooth::bt_action(&name, "connect"))
+        .await?
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub async fn check_bt_connection(name: String) -> Result<Option<bool>, String> {
-    let result = tokio::task::spawn_blocking(move || crate::bluetooth::check_device_connection(&name))
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(result)
+    Ok(run_blocking(move || crate::bluetooth::check_device_connection(&name)).await?)
 }
 
 #[tauri::command]
@@ -141,11 +147,10 @@ pub async fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(
             return Err(format!("托盘最多添加 {} 个设备", TRAY_DEVICE_LIMIT));
         }
     }
-    tokio::task::spawn_blocking(move || {
+    run_blocking(move || {
         config::with_config_mut(|c| toggle_vec_item(&mut c.tray_devices, &name));
     })
-    .await
-    .map_err(|e| e.to_string())?;
+    .await?;
     let _ = app.emit("tray-devices-changed", ());
     Ok(())
 }
@@ -159,49 +164,43 @@ pub fn get_tray_tooltip() -> String {
 
 #[tauri::command(async)]
 pub async fn get_audio_devices() -> Result<Vec<crate::audio::AudioDevice>, String> {
-    tokio::task::spawn_blocking(crate::audio::enumerate_output_devices)
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(crate::audio::enumerate_output_devices)
+        .await?
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub async fn set_device_volume(device_id: String, volume: f32) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || crate::audio::set_device_volume(&device_id, volume))
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(move || crate::audio::set_device_volume(&device_id, volume))
+        .await?
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub async fn toggle_device_mute(device_id: String) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || crate::audio::toggle_device_mute(&device_id))
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(move || crate::audio::toggle_device_mute(&device_id))
+        .await?
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub async fn get_audio_sessions(device_id: String) -> Result<Vec<crate::audio::AudioSession>, String> {
-    tokio::task::spawn_blocking(move || crate::audio::enumerate_audio_sessions(&device_id))
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(move || crate::audio::enumerate_audio_sessions(&device_id))
+        .await?
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub async fn set_session_volume(session_id: String, volume: f32) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || crate::audio::set_session_volume(&session_id, volume))
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(move || crate::audio::set_session_volume(&session_id, volume))
+        .await?
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
 pub async fn toggle_session_mute(session_id: String) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || crate::audio::toggle_session_mute(&session_id))
-        .await
-        .map_err(|e| e.to_string())?
+    run_blocking(move || crate::audio::toggle_session_mute(&session_id))
+        .await?
         .map_err(|e| e.to_string())
 }
 
@@ -210,9 +209,4 @@ pub fn set_default_device(device_id: String) -> Result<(), String> {
     crate::audio::set_default_device(&device_id).map_err(|e| e.to_string())
 }
 
-#[tauri::command(async)]
-pub async fn check_volume_changes() -> Result<Vec<crate::audio::VolumeChangeEvent>, String> {
-    tokio::task::spawn_blocking(crate::audio::check_volume_changes)
-        .await
-        .map_err(|e| e.to_string())
-}
+
