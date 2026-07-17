@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::ffi::c_void;
 use std::ptr;
 use std::sync::{Arc, Mutex};
 use windows::core::*;
@@ -19,54 +20,99 @@ pub struct AudioSession { pub id: String, pub name: String, pub icon: String, pu
 static VOLUME_STATE: once_cell::sync::Lazy<Arc<Mutex<Vec<VolumeState>>>> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 struct VolumeState { device_id: String, volume: f32, is_muted: bool }
 
-// ========== 底层 COM 辅助 ==========
-
-unsafe fn get_default_render_device() -> Result<IMMDevice> {
-    let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
-    enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
-}
-
-unsafe fn get_session_manager(device: &IMMDevice) -> Result<IAudioSessionManager2> {
-    device.Activate(CLSCTX_ALL, None)
-}
-
-// ========== 设备音量 ==========
-
-fn check_volume_changes_internal() -> Vec<VolumeChangeEvent> {
-    let mut changes = Vec::new();
+pub fn set_default_device(device_id: &str) -> Result<()> {
     unsafe {
-        if let Ok(enumerator) = CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL) {
-            if let Ok(collection) = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) {
-                if let Ok(count) = collection.GetCount() {
-                    if let Ok(mut state) = VOLUME_STATE.lock() {
-                        for i in 0..count {
-                            if let Ok(device) = collection.Item(i) {
-                                if let Ok(id) = device.GetId() {
-                                    let id_str = id.to_string().unwrap_or_default();
-                                    if let Ok((volume, is_muted)) = get_device_volume_state(&device) {
-                                        let existing = state.iter().find(|s| s.device_id == id_str);
-                                        if let Some(old) = existing {
-                                            if (old.volume - volume).abs() > 0.001 || old.is_muted != is_muted {
-                                                changes.push(VolumeChangeEvent { device_id: id_str.clone(), volume, is_muted });
-                                                if let Some(s) = state.iter_mut().find(|s| s.device_id == id_str) { s.volume = volume; s.is_muted = is_muted; }
-                                            }
-                                        } else { state.push(VolumeState { device_id: id_str.clone(), volume, is_muted }); }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
+        // 检查当前默认设备
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+        let before = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
+            .ok().and_then(|d| d.GetId().ok())
+            .map(|id| id.to_string().unwrap_or_default()).unwrap_or_default();
+        eprintln!("[audio] BEFORE default: {}", before);
+        
+        let wide: Vec<u16> = device_id.encode_utf16().chain(std::iter::once(0)).collect();
+        set_default_device_raw(wide.as_ptr())?;
+        
+        // 检查切换后默认设备
+        let after = enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
+            .ok().and_then(|d| d.GetId().ok())
+            .map(|id| id.to_string().unwrap_or_default()).unwrap_or_default();
+        eprintln!("[audio] AFTER default: {}", after);
+        Ok(())
     }
-    changes
+}
+
+unsafe fn set_default_device_raw(wide_ptr: *const u16) -> Result<()> {
+    eprintln!("[audio] set_default_device_raw called, ptr={:?}", wide_ptr);
+    let policy_config_cls = windows_sys::core::GUID {
+        data1: 0x870af99c, data2: 0x171d, data3: 0x4f9e,
+        data4: [0xaf, 0x0d, 0xe6, 0x3d, 0xf4, 0x0c, 0x2b, 0xc9],
+    };
+    let ipolicy_iid = windows_sys::core::GUID {
+        data1: 0xf8679f50, data2: 0x850a, data3: 0x41cf,
+        data4: [0x9c, 0x72, 0x43, 0x0f, 0x29, 0x02, 0x90, 0xc8],
+    };
+
+    // IUnknown IID = {00000000-0000-0000-C000-000000000046}
+    let iid_unknown = windows_sys::core::GUID {
+        data1: 0x00000000, data2: 0x0000, data3: 0x0000,
+        data4: [0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46],
+    };
+
+    // CoCreateInstance 获取 IUnknown
+    let mut unknown_ptr: *mut c_void = ptr::null_mut();
+    let hr = windows_sys::Win32::System::Com::CoCreateInstance(
+        &policy_config_cls, ptr::null_mut(), windows_sys::Win32::System::Com::CLSCTX_ALL,
+        &iid_unknown,
+        &mut unknown_ptr as *mut *mut _,
+    );
+    if hr < 0 { eprintln!("[audio] CoCreateInstance FAILED hr={:#x}", hr); return Err(Error::empty()); }
+    eprintln!("[audio] CoCreateInstance OK, unknown_ptr={:?}", unknown_ptr);
+
+    // QI for IPolicyConfig
+    let mut policy_ptr: *mut c_void = ptr::null_mut();
+    let unknown_vtable = *(unknown_ptr as *const *const usize);
+    let qi_fn: unsafe extern "system" fn(*mut c_void, *const windows_sys::core::GUID, *mut *mut c_void) -> i32 =
+        std::mem::transmute(*unknown_vtable);
+    let qi_hr = qi_fn(unknown_ptr, &ipolicy_iid, &mut policy_ptr);
+
+    // Release IUnknown
+    let release_fn: unsafe extern "system" fn(*mut c_void) -> u32 =
+        std::mem::transmute(*(unknown_vtable.offset(2)));
+    release_fn(unknown_ptr);
+
+    if qi_hr < 0 || policy_ptr.is_null() { eprintln!("[audio] QI FAILED hr={:#x}", qi_hr); return Err(Error::empty()); }
+    eprintln!("[audio] QI OK, policy_ptr={:?}", policy_ptr);
+
+    // SetDefaultEndpoint at vtable index 13
+    let policy_vtable = *(policy_ptr as *const *const usize);
+    let set_endpoint_fn: unsafe extern "system" fn(*mut c_void, PCWSTR, i32) -> i32 =
+        std::mem::transmute(*policy_vtable.add(13));
+    // 为所有三个角色设置
+    for role in 0..=2 {
+        let hr = set_endpoint_fn(policy_ptr, PCWSTR(wide_ptr), role);
+        eprintln!("[audio] SetDefaultEndpoint idx=13 role={} hr={:#x}", role, hr);
+    }
+
+    // Release IPolicyConfig
+    let release_fn2: unsafe extern "system" fn(*mut c_void) -> u32 =
+        std::mem::transmute(*(policy_vtable.offset(2)));
+    release_fn2(policy_ptr);
+
+    if hr < 0 { return Err(Error::empty()); }
+    Ok(())
 }
 
 pub fn enumerate_output_devices() -> Result<Vec<AudioDevice>> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
         let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+        let default_id = enumerator
+            .GetDefaultAudioEndpoint(eRender, eMultimedia)
+            .ok()
+            .and_then(|d| d.GetId().ok())
+            .map(|id| id.to_string().unwrap_or_default())
+            .unwrap_or_default();
         let collection = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
         let count = collection.GetCount()?;
         let mut devices = Vec::new();
@@ -76,7 +122,7 @@ pub fn enumerate_output_devices() -> Result<Vec<AudioDevice>> {
                     let id_str = id.to_string()?;
                     let name = get_device_name(&device).unwrap_or_else(|_| "Unknown Device".to_string());
                     let (volume, is_muted) = get_device_volume_state(&device).unwrap_or((0.0, false));
-                    devices.push(AudioDevice { id: id_str, name, volume, is_muted, is_default: false });
+                    devices.push(AudioDevice { id: id_str.clone(), name, volume, is_muted, is_default: id_str == default_id });
                 }
             }
         }
@@ -143,9 +189,36 @@ pub fn toggle_device_mute(device_id: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn check_volume_changes() -> Vec<VolumeChangeEvent> { check_volume_changes_internal() }
-
-// ========== 应用音量（参考 volume-controller 方式） ==========
+pub fn check_volume_changes() -> Vec<VolumeChangeEvent> {
+    let mut changes = Vec::new();
+    unsafe {
+        if let Ok(enumerator) = CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL) {
+            if let Ok(collection) = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) {
+                if let Ok(count) = collection.GetCount() {
+                    if let Ok(mut state) = VOLUME_STATE.lock() {
+                        for i in 0..count {
+                            if let Ok(device) = collection.Item(i) {
+                                if let Ok(id) = device.GetId() {
+                                    let id_str = id.to_string().unwrap_or_default();
+                                    if let Ok((volume, is_muted)) = get_device_volume_state(&device) {
+                                        let existing = state.iter().find(|s| s.device_id == id_str);
+                                        if let Some(old) = existing {
+                                            if (old.volume - volume).abs() > 0.001 || old.is_muted != is_muted {
+                                                changes.push(VolumeChangeEvent { device_id: id_str.clone(), volume, is_muted });
+                                                if let Some(s) = state.iter_mut().find(|s| s.device_id == id_str) { s.volume = volume; s.is_muted = is_muted; }
+                                            }
+                                        } else { state.push(VolumeState { device_id: id_str.clone(), volume, is_muted }); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    changes
+}
 
 pub fn enumerate_audio_sessions(_device_id: &str) -> Result<Vec<AudioSession>> {
     unsafe {
@@ -157,7 +230,7 @@ pub fn enumerate_audio_sessions(_device_id: &str) -> Result<Vec<AudioSession>> {
         for di in 0..device_count {
             if let Ok(device) = collection.Item(di) {
                 let dev_id = device.GetId().map(|id| id.to_string().unwrap_or_default()).unwrap_or_default();
-                let dev_name = get_device_name(&device).unwrap_or_default();
+                let _dev_name = get_device_name(&device).unwrap_or_default();
                 let session_manager: IAudioSessionManager2 = match device.Activate(CLSCTX_ALL, None) { Ok(m) => m, Err(_) => continue };
                 let session_enumerator = match session_manager.GetSessionEnumerator() { Ok(e) => e, Err(_) => continue };
                 let count = session_enumerator.GetCount().unwrap_or(0);

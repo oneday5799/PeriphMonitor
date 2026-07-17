@@ -205,6 +205,11 @@ pub async fn toggle_session_mute(session_id: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn set_default_device(device_id: String) -> Result<(), String> {
+    crate::audio::set_default_device(&device_id).map_err(|e| e.to_string())
+}
+
 #[tauri::command(async)]
 pub async fn check_volume_changes() -> Result<Vec<crate::audio::VolumeChangeEvent>, String> {
     tokio::task::spawn_blocking(crate::audio::check_volume_changes)

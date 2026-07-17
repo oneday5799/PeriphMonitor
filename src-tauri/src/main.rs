@@ -77,6 +77,7 @@ fn main() {
             commands::get_audio_sessions,
             commands::set_session_volume,
             commands::toggle_session_mute,
+            commands::set_default_device,
             commands::check_volume_changes,
         ])
         .setup(move |app| {

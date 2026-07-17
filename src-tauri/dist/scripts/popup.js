@@ -802,6 +802,33 @@ function createAudioDeviceCard(device) {
     badge.textContent = "(默认)";
     nameEl.appendChild(badge);
   }
+  // 点击设备名称切换默认设备
+  nameEl.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    if (nameEl.classList.contains("default")) return;
+    const invoke = getInvoke();
+    if (!invoke) return;
+    try {
+      // 立即更新标记
+      nameEl.classList.add("default");
+      if (!nameEl.querySelector('.default-badge')) {
+        const badge = document.createElement("span");
+        badge.className = "default-badge";
+        badge.textContent = "(默认)";
+        nameEl.appendChild(badge);
+      }
+      await invoke("set_default_device", { deviceId: device.id });
+      // 等待音频引擎同步
+      await new Promise(r => setTimeout(r, 500));
+      await loadAudioDevices();
+      selectDevice(device.id);
+    } catch (err) {
+      nameEl.classList.remove("default");
+      const badge = nameEl.querySelector('.default-badge');
+      if (badge) badge.remove();
+      console.error("Failed to set default device:", err);
+    }
+  });
   header.appendChild(nameEl);
   card.appendChild(header);
 
@@ -859,6 +886,24 @@ function updateAudioDeviceCard(card, device) {
     card.classList.add("selected");
   } else {
     card.classList.remove("selected");
+  }
+
+  // 更新默认设备标记
+  const nameEl = card.querySelector('.audio-device-name');
+  if (nameEl) {
+    if (device.is_default) {
+      nameEl.classList.add("default");
+      if (!nameEl.querySelector('.default-badge')) {
+        const badge = document.createElement("span");
+        badge.className = "default-badge";
+        badge.textContent = "(默认)";
+        nameEl.appendChild(badge);
+      }
+    } else {
+      nameEl.classList.remove("default");
+      const badge = nameEl.querySelector('.default-badge');
+      if (badge) badge.remove();
+    }
   }
 
   // 更新音量滑块（仅当用户未在拖动时）
