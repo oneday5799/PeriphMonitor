@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Rust-1.77+-black?style=flat-square&logo=rust" alt="Rust">
+  <img src="https://img.shields.io/badge/Rust-1.80+-black?style=flat-square&logo=rust" alt="Rust">
   <img src="https://img.shields.io/badge/Tauri-2.x-blue?style=flat-square&logo=tauri" alt="Tauri">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11%20(x64%2FARM64)-0078d4?style=flat-square&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
@@ -49,6 +49,8 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 - 单实例模式，重复启动时自动聚焦已有窗口
 - 关于页面（版本信息、项目主页链接）
 
+> 前端代码按功能拆分：`popup.js` 负责设备列表，`audio.js` 负责音量控制；CSS 同理拆分为 `popup.css` 和 `audio.css`。后端 `wmi_query.rs` 集成了设备去重逻辑，`process.rs` 统一管理 ShellExecuteW 调用。
+
 ### 技术栈
 
 | 组件 | 技术 |
@@ -76,19 +78,20 @@ src-tauri/
 ├── src/
 │   ├── main.rs          # 应用入口，COM 初始化，Tauri 构建
 │   ├── state.rs         # 全局状态（托盘位置、动画状态、自启动）
-│   ├── classify.rs      # 设备分类逻辑（PNPClass/名称匹配）
-│   ├── bluetooth.rs     # WinRT 蓝牙 API（配对设备、GATT/PnP 电量）
-│   ├── wmi_query.rs     # WMI 查询编排，设备去重与过滤
-│   ├── audio.rs         # 音量控制（Core Audio API：设备枚举、音量/静音、默认设备切换、会话管理）
-│   ├── audio_notify.rs  # 音量变化后台轮询与事件推送
-│   ├── commands.rs      # Tauri 命令处理器
 │   ├── config.rs        # 配置管理（TOML 加载/保存）
+│   ├── classify.rs      # 设备分类逻辑（PNPClass/名称匹配）
 │   ├── device.rs        # 数据模型（Device, DevType）
 │   ├── device_data.rs   # 2.4G 设备数据加载与查询
+│   ├── wmi_query.rs     # WMI 查询编排，设备去重与过滤
+│   ├── bluetooth.rs     # WinRT 蓝牙 API（配对设备、GATT/PnP 电量）
+│   ├── audio.rs         # 音量控制（Core Audio API：设备枚举、音量/静音、默认设备切换、会话管理）
+│   ├── audio_notify.rs  # 音量变化后台轮询与事件推送
+│   ├── app_icon.rs      # 进程图标提取（用于音频会话显示）
+│   ├── commands.rs      # Tauri 命令处理器
 │   ├── popup.rs         # 弹出窗口生命周期与动画
 │   ├── tray.rs          # 系统托盘菜单与事件（音频设备切换、Windows 声音设置）
 │   ├── windows.rs       # 窗口创建与 DWM 圆角
-│   └── process.rs       # 进程工具（隐藏窗口、PowerShell 调用）
+│   └── process.rs       # 进程工具（隐藏窗口、PowerShell 调用、ShellExecuteW）
 ├── dist/
 │   ├── popup.html       # 主窗口
 │   ├── settings.html    # 设置页
@@ -96,11 +99,13 @@ src-tauri/
 │   ├── scripts/
 │   │   ├── common.js    # 共享常量与工具函数
 │   │   ├── dialog.js    # 通用对话框组件
-│   │   ├── popup.js     # 主窗口逻辑（含音量控制页）
+│   │   ├── popup.js     # 主窗口逻辑（设备列表）
+│   │   ├── audio.js     # 音量控制逻辑（设备/会话音量、滑块、静音）
 │   │   └── settings.js  # 设置页逻辑
 │   └── styles/
-│       ├── base.css     # 基础样式
-│       ├── popup.css    # 主窗口样式
+│       ├── base.css     # 基础样式（重置、滚动条、字体）
+│       ├── popup.css    # 主窗口样式（设备卡片、菜单、对话框）
+│       ├── audio.css    # 音量控制样式（滑块、设备/会话卡片）
 │       └── settings.css # 设置页样式
 ```
 
