@@ -1,3 +1,4 @@
+use std::os::windows::ffi::OsStrExt;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use tauri::{
@@ -121,11 +122,14 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let audio_devices_menu = build_audio_devices_menu(app.handle())?;
     let _ = AUDIO_DEVICES_SUBMENU.get_or_init(|| Mutex::new(Some(audio_devices_menu.clone())));
 
+    // 构建 Windows 声音设置子菜单
+    let win_sound_menu = build_windows_sound_settings_menu(app.handle())?;
+
     let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
 
     let menu = Menu::with_items(
         app,
-        &[&show_i, &settings_i, &about_i, &audio_devices_menu, &auto_i, &exit_i],
+        &[&show_i, &settings_i, &about_i, &audio_devices_menu, &win_sound_menu, &auto_i, &exit_i],
     )?;
 
     let _tray = TrayIconBuilder::with_id("main-tray")
@@ -160,6 +164,35 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                             update_audio_devices_menu();
                         });
                     }
+                }
+                "win_sound_volume_mixer" => {
+                    let wide_file = to_wide("sndvol.exe");
+                    let wide_verb = to_wide("open");
+                    unsafe {
+                        let _ = windows_sys::Win32::UI::Shell::ShellExecuteW(
+                            std::ptr::null_mut(),
+                            wide_verb.as_ptr(),
+                            wide_file.as_ptr(),
+                            std::ptr::null(),
+                            std::ptr::null(),
+                            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+                        );
+                    }
+                }
+                "win_sound_playback" => {
+                    let _ = open_sound_panel("playback");
+                }
+                "win_sound_recording" => {
+                    let _ = open_sound_panel("recording");
+                }
+                "win_sound_sounds" => {
+                    let _ = open_sound_panel("sounds");
+                }
+                "win_sound_settings" => {
+                    let _ = open_settings_page("sound");
+                }
+                "win_sound_app_volume" => {
+                    let _ = open_settings_page("apps-volume");
                 }
                 _ => {}
             }
@@ -285,11 +318,12 @@ pub fn update_audio_devices_menu() {
     let Ok(about_i) = MenuItem::with_id(&app, "about", "关于", true, None::<&str>) else { return };
     let Ok(auto_i) = MenuItem::with_id(&app, "auto_start", auto_text, true, None::<&str>) else { return };
     let Ok(exit_i) = MenuItem::with_id(&app, "exit", "退出", true, None::<&str>) else { return };
+    let Ok(win_sound_menu) = build_windows_sound_settings_menu(&app) else { return };
     let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
 
     if let Ok(menu) = Menu::with_items(
         &app,
-        &[&show_i, &settings_i, &about_i, &new_submenu, &auto_i, &exit_i],
+        &[&show_i, &settings_i, &about_i, &new_submenu, &win_sound_menu, &auto_i, &exit_i],
     ) {
         let _ = tray.set_menu(Some(menu));
     }
@@ -300,4 +334,66 @@ pub fn update_audio_devices_menu() {
             *guard = Some(new_submenu);
         }
     }
+}
+
+/// 构建 Windows 声音设置子菜单
+fn build_windows_sound_settings_menu(app: &tauri::AppHandle) -> Result<Submenu<tauri::Wry>, Box<dyn std::error::Error>> {
+    let submenu = Submenu::with_id(app, "win_sound", "Windows 声音设置", true)?;
+    let items = [
+        ("win_sound_volume_mixer", "音量合成器 (Classic)"),
+        ("win_sound_playback", "播放设备 (Classic)"),
+        ("win_sound_recording", "录制设备 (Classic)"),
+        ("win_sound_sounds", "声音 (Classic)"),
+        ("win_sound_settings", "声音设置"),
+        ("win_sound_app_volume", "音量合成器"),
+    ];
+    for (id, label) in items {
+        let item = MenuItem::with_id(app, id, label, true, None::<&str>)?;
+        submenu.append(&item)?;
+    }
+    Ok(submenu)
+}
+
+/// 打开旧版声音控制面板 (mmsys.cpl)
+fn open_sound_panel(panel: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let arg = format!("shell32.dll,Control_RunDLL mmsys.cpl,,{}", panel);
+    let wide_file = to_wide("rundll32.exe");
+    let wide_arg = to_wide(&arg);
+    let wide_verb = to_wide("open");
+    unsafe {
+        windows_sys::Win32::UI::Shell::ShellExecuteW(
+            std::ptr::null_mut(),
+            wide_verb.as_ptr(),
+            wide_file.as_ptr(),
+            wide_arg.as_ptr(),
+            std::ptr::null(),
+            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        );
+    }
+    Ok(())
+}
+
+/// 打开现代 Windows 设置页面 (ms-settings:)
+fn open_settings_page(page: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let url = format!("ms-settings:{}", page);
+    let wide_url = to_wide(&url);
+    let wide_verb = to_wide("open");
+    unsafe {
+        windows_sys::Win32::UI::Shell::ShellExecuteW(
+            std::ptr::null_mut(),
+            wide_verb.as_ptr(),
+            wide_url.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        );
+    }
+    Ok(())
+}
+
+fn to_wide(s: &str) -> Vec<u16> {
+    std::ffi::OsStr::new(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
