@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use tauri::{
     image::Image,
-    menu::{Menu, MenuItem, Submenu},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{TrayIcon, TrayIconBuilder},
     Emitter, Listener,
 };
@@ -127,9 +127,24 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
 
+    let sep1 = PredefinedMenuItem::separator(app)?;
+    let sep2 = PredefinedMenuItem::separator(app)?;
+    let sep3 = PredefinedMenuItem::separator(app)?;
+
     let menu = Menu::with_items(
         app,
-        &[&show_i, &settings_i, &about_i, &audio_devices_menu, &win_sound_menu, &auto_i, &exit_i],
+        &[
+            &show_i,
+            &sep1,
+            &audio_devices_menu,
+            &win_sound_menu,
+            &sep2,
+            &auto_i,
+            &sep3,
+            &settings_i,
+            &about_i,
+            &exit_i,
+        ],
     )?;
 
     let _tray = TrayIconBuilder::with_id("main-tray")
@@ -321,9 +336,24 @@ pub fn update_audio_devices_menu() {
     let Ok(win_sound_menu) = build_windows_sound_settings_menu(&app) else { return };
     let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
 
+    let Ok(sep1) = PredefinedMenuItem::separator(&app) else { return };
+    let Ok(sep2) = PredefinedMenuItem::separator(&app) else { return };
+    let Ok(sep3) = PredefinedMenuItem::separator(&app) else { return };
+
     if let Ok(menu) = Menu::with_items(
         &app,
-        &[&show_i, &settings_i, &about_i, &new_submenu, &win_sound_menu, &auto_i, &exit_i],
+        &[
+            &show_i,
+            &sep1,
+            &new_submenu,
+            &win_sound_menu,
+            &sep2,
+            &auto_i,
+            &sep3,
+            &settings_i,
+            &about_i,
+            &exit_i,
+        ],
     ) {
         let _ = tray.set_menu(Some(menu));
     }
