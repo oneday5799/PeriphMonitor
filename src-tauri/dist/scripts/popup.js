@@ -18,6 +18,24 @@ function debounce(fn, delay) {
   };
 }
 
+function throttle(fn, delay) {
+  let lastCall = 0;
+  let timer = null;
+  return function(...args) {
+    const now = Date.now();
+    if (now - lastCall >= delay) {
+      lastCall = now;
+      fn.apply(this, args);
+    } else {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        lastCall = Date.now();
+        fn.apply(this, args);
+      }, delay - (now - lastCall));
+    }
+  };
+}
+
 function showToast(msg, onClick) {
   let el = document.querySelector(".toast");
   if (!el) {
@@ -797,7 +815,7 @@ function createAudioDeviceCard(device) {
   slider.max = "100";
   slider.value = Math.round(device.volume * 100);
 
-  const debouncedSetDeviceVolume = debounce(async (id, vol) => {
+  const throttledSetDeviceVolume = throttle(async (id, vol) => {
     await setDeviceVolume(id, vol);
   }, 150);
 
@@ -806,7 +824,7 @@ function createAudioDeviceCard(device) {
     device.volume = value;
     updateVolumeDisplay(device.id, e.target.value);
     updateSliderGradient(e.target);
-    debouncedSetDeviceVolume(device.id, value);
+    throttledSetDeviceVolume(device.id, value);
   });
   updateSliderGradient(slider);
   controls.appendChild(slider);
@@ -960,9 +978,9 @@ function createAudioSessionCard(session) {
   slider.max = "100";
   slider.value = Math.round(session.volume * 100);
 
-  const debouncedSetSessionVolume = debounce(async (sessionId, vol) => {
+  const throttledSetSessionVolume = throttle(async (sessionId, vol) => {
     await setSessionVolume(sessionId, vol);
-  }, 150);
+  }, 100);
 
   slider.addEventListener("input", async (e) => {
     const value = parseInt(e.target.value) / 100;
@@ -972,7 +990,7 @@ function createAudioSessionCard(session) {
     updateSliderGradient(e.target);
     const valEl = card.querySelector('.volume-value');
     if (valEl) valEl.textContent = `${e.target.value}%`;
-    debouncedSetSessionVolume(card.dataset.sessionId, value);
+    throttledSetSessionVolume(card.dataset.sessionId, value);
   });
   updateSliderGradient(slider);
   controls.appendChild(slider);
