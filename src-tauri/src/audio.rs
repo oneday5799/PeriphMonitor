@@ -14,10 +14,23 @@ pub struct AudioDevice { pub id: String, pub name: String, pub volume: f32, pub 
 pub struct VolumeChangeEvent { pub device_id: String, pub volume: f32, pub is_muted: bool }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AudioSession { pub id: String, pub name: String, pub icon: String, pub pid: u32, pub volume: f32, pub is_muted: bool, pub device_id: String }
+pub struct AudioSession { pub id: String, pub name: String, pub icon: String, pub pid: u32, pub volume: f32, pub is_muted: bool, pub device_id: String, #[serde(default)] pub is_active: bool }
 
 static VOLUME_STATE: once_cell::sync::Lazy<Arc<Mutex<Vec<VolumeState>>>> = once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 struct VolumeState { device_id: String, volume: f32, is_muted: bool }
+
+// ========== 底层 COM 辅助 ==========
+
+unsafe fn get_default_render_device() -> Result<IMMDevice> {
+    let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+    enumerator.GetDefaultAudioEndpoint(eRender, eMultimedia)
+}
+
+unsafe fn get_session_manager(device: &IMMDevice) -> Result<IAudioSessionManager2> {
+    device.Activate(CLSCTX_ALL, None)
+}
+
+// ========== 设备音量 ==========
 
 fn check_volume_changes_internal() -> Vec<VolumeChangeEvent> {
     let mut changes = Vec::new();
@@ -103,7 +116,6 @@ pub fn set_device_volume(device_id: &str, volume: f32) -> Result<()> {
         let endpoint: IAudioEndpointVolume = device.Activate(CLSCTX_ALL, None)?;
         endpoint.SetMasterVolumeLevelScalar(volume.max(0.0).min(1.0), ptr::null())?;
     }
-    // Update cached state
     if let Ok(mut state) = VOLUME_STATE.lock() {
         if let Some(s) = state.iter_mut().find(|s| s.device_id == device_id) {
             s.volume = volume;
@@ -123,7 +135,6 @@ pub fn toggle_device_mute(device_id: &str) -> Result<()> {
         new_muted = !current.as_bool();
         endpoint.SetMute(new_muted, ptr::null())?;
     }
-    // Update cached state
     if let Ok(mut state) = VOLUME_STATE.lock() {
         if let Some(s) = state.iter_mut().find(|s| s.device_id == device_id) {
             s.is_muted = new_muted;
@@ -134,16 +145,19 @@ pub fn toggle_device_mute(device_id: &str) -> Result<()> {
 
 pub fn check_volume_changes() -> Vec<VolumeChangeEvent> { check_volume_changes_internal() }
 
+// ========== 应用音量（参考 volume-controller 方式） ==========
+
 pub fn enumerate_audio_sessions(_device_id: &str) -> Result<Vec<AudioSession>> {
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
         let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
-        let mut all_sessions = Vec::new();
+        let mut all_sessions: Vec<AudioSession> = Vec::new();
         let collection = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
         let device_count = collection.GetCount()?;
         for di in 0..device_count {
             if let Ok(device) = collection.Item(di) {
                 let dev_id = device.GetId().map(|id| id.to_string().unwrap_or_default()).unwrap_or_default();
+                let dev_name = get_device_name(&device).unwrap_or_default();
                 let session_manager: IAudioSessionManager2 = match device.Activate(CLSCTX_ALL, None) { Ok(m) => m, Err(_) => continue };
                 let session_enumerator = match session_manager.GetSessionEnumerator() { Ok(e) => e, Err(_) => continue };
                 let count = session_enumerator.GetCount().unwrap_or(0);
@@ -155,31 +169,31 @@ pub fn enumerate_audio_sessions(_device_id: &str) -> Result<Vec<AudioSession>> {
                         let pid = session_control2.GetProcessId().unwrap_or(0);
                         if pid == 0 { continue; }
                         let session_id = get_session_id(&session_control2).unwrap_or_default();
-                        let simple_volume: ISimpleAudioVolume = match session_control.cast() { Ok(v) => v, Err(_) => continue };
-                        let volume = simple_volume.GetMasterVolume().unwrap_or(0.0);
-                        let is_muted = simple_volume.GetMute().map(|b| b.as_bool()).unwrap_or(false);
+                        let (volume, is_muted) = if let Ok(sv) = session_control.cast::<ISimpleAudioVolume>() {
+                            let vol = sv.GetMasterVolume().unwrap_or(0.0);
+                            let muted = sv.GetMute().map(|b| b.as_bool()).unwrap_or(false);
+                            (vol, muted)
+                        } else {
+                            (0.0, false)
+                        };
                         let session_name = get_session_display_name(&session_control).unwrap_or_default();
                         let display_name = if !session_name.is_empty() && session_name != "Unknown App" { session_name } else { format!("App (PID: {})", pid) };
                         let icon = crate::app_icon::get_app_icon_by_pid(pid).unwrap_or_default();
-                        if all_sessions.iter().any(|s: &AudioSession| s.pid == pid) { continue; }
-                        all_sessions.push(AudioSession { id: session_id, name: display_name, icon, pid, volume, is_muted, device_id: dev_id.clone() });
+                        let is_active = state.0 == 1;
+                        let audio_session = AudioSession { id: session_id, name: display_name, icon, pid, volume, is_muted, device_id: dev_id.clone(), is_active };
+                        if let Some(existing) = all_sessions.iter_mut().find(|s| s.pid == pid) {
+                            if is_active && !existing.is_active {
+                                *existing = audio_session;
+                            }
+                        } else {
+                            all_sessions.push(audio_session);
+                        }
                     }
                 }
             }
         }
         Ok(all_sessions)
     }
-}
-
-unsafe fn get_session_display_name(session: &IAudioSessionControl) -> Result<String> {
-    let display_name = session.GetDisplayName()?;
-    if display_name.is_empty() { return Ok("Unknown App".to_string()); }
-    Ok(display_name.to_string()?)
-}
-
-unsafe fn get_session_id(session: &IAudioSessionControl2) -> Result<String> {
-    let id = session.GetSessionInstanceIdentifier()?;
-    Ok(id.to_string()?)
 }
 
 pub fn set_session_volume(session_id: &str, volume: f32) -> Result<()> {
@@ -195,9 +209,10 @@ pub fn set_session_volume(session_id: &str, volume: f32) -> Result<()> {
                     if let Ok(sc) = se.GetSession(i) {
                         let sc2: IAudioSessionControl2 = match sc.cast() { Ok(s) => s, Err(_) => continue };
                         if get_session_id(&sc2).unwrap_or_default() == session_id {
-                            let sv: ISimpleAudioVolume = match sc.cast() { Ok(v) => v, Err(_) => continue };
-                            let _ = sv.SetMasterVolume(volume.max(0.0).min(1.0), ptr::null());
-                            return Ok(());
+                            if let Ok(sv) = sc.cast::<ISimpleAudioVolume>() {
+                                sv.SetMasterVolume(volume.max(0.0).min(1.0), ptr::null())?;
+                                return Ok(());
+                            }
                         }
                     }
                 }
@@ -220,10 +235,11 @@ pub fn toggle_session_mute(session_id: &str) -> Result<()> {
                     if let Ok(sc) = se.GetSession(i) {
                         let sc2: IAudioSessionControl2 = match sc.cast() { Ok(s) => s, Err(_) => continue };
                         if get_session_id(&sc2).unwrap_or_default() == session_id {
-                            let sv: ISimpleAudioVolume = match sc.cast() { Ok(v) => v, Err(_) => continue };
-                            let current = sv.GetMute().map(|b| b.as_bool()).unwrap_or(false);
-                            let _ = sv.SetMute(!current, ptr::null());
-                            return Ok(());
+                            if let Ok(sv) = sc.cast::<ISimpleAudioVolume>() {
+                                let current = sv.GetMute()?;
+                                sv.SetMute(!current.as_bool(), ptr::null())?;
+                                return Ok(());
+                            }
                         }
                     }
                 }
@@ -231,4 +247,15 @@ pub fn toggle_session_mute(session_id: &str) -> Result<()> {
         }
         Ok(())
     }
+}
+
+unsafe fn get_session_display_name(session: &IAudioSessionControl) -> Result<String> {
+    let display_name = session.GetDisplayName()?;
+    if display_name.is_empty() { return Ok("Unknown App".to_string()); }
+    Ok(display_name.to_string()?)
+}
+
+unsafe fn get_session_id(session: &IAudioSessionControl2) -> Result<String> {
+    let id = session.GetSessionInstanceIdentifier()?;
+    Ok(id.to_string()?)
 }

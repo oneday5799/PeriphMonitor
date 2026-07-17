@@ -960,17 +960,19 @@ function createAudioSessionCard(session) {
   slider.max = "100";
   slider.value = Math.round(session.volume * 100);
 
-  const debouncedSetSessionVolume = debounce(async (id, vol) => {
-    await setSessionVolume(id, vol);
+  const debouncedSetSessionVolume = debounce(async (sessionId, vol) => {
+    await setSessionVolume(sessionId, vol);
   }, 150);
 
   slider.addEventListener("input", async (e) => {
     const value = parseInt(e.target.value) / 100;
-    session.volume = value;
+    // 更新本地状态中的音量
+    const sess = audioSessions.find(s => s.id === card.dataset.sessionId);
+    if (sess) sess.volume = value;
     updateSliderGradient(e.target);
     const valEl = card.querySelector('.volume-value');
     if (valEl) valEl.textContent = `${e.target.value}%`;
-    debouncedSetSessionVolume(session.id, value);
+    debouncedSetSessionVolume(card.dataset.sessionId, value);
   });
   updateSliderGradient(slider);
   controls.appendChild(slider);
@@ -984,10 +986,15 @@ function createAudioSessionCard(session) {
   muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
   muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
   muteBtn.addEventListener("click", async () => {
-    await toggleSessionMute(session.id);
-    session.is_muted = !session.is_muted;
-    muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
-    muteBtn.innerHTML = session.is_muted ? getMuteIcon() : getVolumeIcon();
+    const sessionId = card.dataset.sessionId;
+    await toggleSessionMute(sessionId);
+    // 更新本地状态
+    const sess = audioSessions.find(s => s.id === sessionId);
+    if (sess) {
+      sess.is_muted = !sess.is_muted;
+      muteBtn.className = "mute-btn" + (sess.is_muted ? " muted" : "");
+      muteBtn.innerHTML = sess.is_muted ? getMuteIcon() : getVolumeIcon();
+    }
   });
   controls.appendChild(muteBtn);
 
@@ -1057,11 +1064,6 @@ async function toggleSessionMute(sessionId) {
   if (!invoke) return;
   try {
     await invoke("toggle_session_mute", { sessionId });
-    const session = audioSessions.find(s => s.id === sessionId);
-    if (session) {
-      session.is_muted = !session.is_muted;
-      renderAudioSessions();
-    }
   } catch (e) {
     console.error("Failed to toggle session mute:", e);
   }
