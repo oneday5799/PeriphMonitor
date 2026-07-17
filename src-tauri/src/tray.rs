@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Mutex, OnceLock};
 use tauri::{
     image::Image,
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, Submenu},
     tray::{TrayIcon, TrayIconBuilder},
     Emitter, Listener,
 };
@@ -11,8 +11,10 @@ use crate::config;
 use crate::popup;
 use crate::windows;
 use crate::state::{TRAY_POS, AUTO_START, AUTO_MENU_ITEM, get_devices_cache};
+use crate::audio;
 
 static TRAY_ICON: OnceLock<Mutex<Option<TrayIcon<tauri::Wry>>>> = OnceLock::new();
+static AUDIO_DEVICES_SUBMENU: OnceLock<Mutex<Option<Submenu<tauri::Wry>>>> = OnceLock::new();
 
 /// 刷新设备缓存，返回是否发生变化
 pub fn refresh_devices_cache() -> bool {
@@ -115,11 +117,15 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let auto_i = MenuItem::with_id(app, "auto_start", auto_text, true, None::<&str>)?;
     let exit_i = MenuItem::with_id(app, "exit", "退出", true, None::<&str>)?;
 
+    // 构建音频设备切换子菜单
+    let audio_devices_menu = build_audio_devices_menu(app.handle())?;
+    let _ = AUDIO_DEVICES_SUBMENU.get_or_init(|| Mutex::new(Some(audio_devices_menu.clone())));
+
     let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
 
     let menu = Menu::with_items(
         app,
-        &[&show_i, &settings_i, &about_i, &auto_i, &exit_i],
+        &[&show_i, &settings_i, &about_i, &audio_devices_menu, &auto_i, &exit_i],
     )?;
 
     let _tray = TrayIconBuilder::with_id("main-tray")
@@ -146,6 +152,15 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     let _ = app.emit("auto-start-changed", new_val);
                 }
                 "exit" => { std::process::exit(0); }
+                id if id.starts_with("audio_dev_") => {
+                    let device_id = id[10..].to_owned();
+                    if !device_id.is_empty() {
+                        std::thread::spawn(move || {
+                            let _ = audio::set_default_device(&device_id);
+                            update_audio_devices_menu();
+                        });
+                    }
+                }
                 _ => {}
             }
         })
@@ -205,6 +220,10 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         std::thread::spawn(move || update_tooltip(&h));
     });
 
+    app.listen("audio-devices-changed", |_| {
+        update_audio_devices_menu();
+    });
+
     // 启动后台设备监控线程
     start_device_watcher(app.handle().clone());
 
@@ -222,6 +241,63 @@ pub fn update_auto_text() {
                 };
                 let _ = mi.set_text(text);
             }
+        }
+    }
+}
+
+/// 构建音频设备切换子菜单
+fn build_audio_devices_menu(app: &tauri::AppHandle) -> Result<Submenu<tauri::Wry>, Box<dyn std::error::Error>> {
+    let submenu = Submenu::with_id(app, "audio_devices", "切换音频设备", true)?;
+    let devices = audio::enumerate_output_devices().unwrap_or_default();
+    if devices.is_empty() {
+        let empty = MenuItem::with_id(app, "audio_dev_empty", "无音频设备", false, None::<&str>)?;
+        submenu.append(&empty)?;
+    } else {
+        for device in &devices {
+            let check = if device.is_default { " ✓" } else { "" };
+            let label = format!("{}{}", device.name, check);
+            let item = MenuItem::with_id(app, format!("audio_dev_{}", device.id), label, true, None::<&str>)?;
+            submenu.append(&item)?;
+        }
+    }
+    Ok(submenu)
+}
+
+/// 更新音频设备切换子菜单（在设备列表变化时调用）
+pub fn update_audio_devices_menu() {
+    let Ok(tray_guard) = TRAY_ICON.get().unwrap().lock() else { return };
+    let Some(ref tray) = *tray_guard else { return };
+    let app = tray.app_handle().clone();
+
+    let new_submenu = match build_audio_devices_menu(&app) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    // 重建顶层菜单，替换音频子菜单
+    let auto_text = if AUTO_START.load(Ordering::Relaxed) {
+        "开机自启 ✓"
+    } else {
+        "开机自启"
+    };
+    let Ok(show_i) = MenuItem::with_id(&app, "show", "设备信息", true, None::<&str>) else { return };
+    let Ok(settings_i) = MenuItem::with_id(&app, "settings", "设置", true, None::<&str>) else { return };
+    let Ok(about_i) = MenuItem::with_id(&app, "about", "关于", true, None::<&str>) else { return };
+    let Ok(auto_i) = MenuItem::with_id(&app, "auto_start", auto_text, true, None::<&str>) else { return };
+    let Ok(exit_i) = MenuItem::with_id(&app, "exit", "退出", true, None::<&str>) else { return };
+    let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
+
+    if let Ok(menu) = Menu::with_items(
+        &app,
+        &[&show_i, &settings_i, &about_i, &new_submenu, &auto_i, &exit_i],
+    ) {
+        let _ = tray.set_menu(Some(menu));
+    }
+
+    drop(tray_guard);
+    if let Some(submenu_lock) = AUDIO_DEVICES_SUBMENU.get() {
+        if let Ok(mut guard) = submenu_lock.lock() {
+            *guard = Some(new_submenu);
         }
     }
 }
