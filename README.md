@@ -30,6 +30,11 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 - 设备卡片显示连接类型标签（蓝牙/2.4G）
 - 系统托盘图标，左键弹出设备列表，右键原生菜单
 - 托盘图标悬停显示设备信息（状态、电量），最多支持 4 个设备，状态变化时自动更新
+- 音量控制页面：
+  - 列出所有音频输出设备，支持切换默认设备、调节音量、静音
+  - 按应用查看/调节音量会话（音量滑块实时同步系统变化）
+  - 托盘右键菜单快速切换音频设备
+- 托盘右键菜单 Windows 声音设置快捷入口（播放设备/录制设备/声音/音量合成器/声音设置）
 - 设备分组管理，支持自定义分组和分组可见性控制
 - 正则表达式过滤，可编辑过滤规则
 - 设备去重开关，同名设备保留有连接类型的版本（蓝牙/2.4G 优先于普通 USB）
@@ -52,6 +57,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 | 后端 | Rust |
 | 前端 | 纯 HTML/CSS/JS |
 | 设备检测 | WMI + WinRT Bluetooth + windows_pnp |
+| 音量控制 | Windows Core Audio API (IAudioEndpointVolume / IAudioSessionManager2) |
 | 2.4G 识别 | USB VID/PID 匹配（wireless_24g_devices.json） |
 | BLE 电量 | GATT Battery Service (0x180F/0x2A19) |
 | BTC 电量 | windows_pnp (DEVPKEY_BLUETOOTH_BATTERY) |
@@ -73,12 +79,14 @@ src-tauri/
 │   ├── classify.rs      # 设备分类逻辑（PNPClass/名称匹配）
 │   ├── bluetooth.rs     # WinRT 蓝牙 API（配对设备、GATT/PnP 电量）
 │   ├── wmi_query.rs     # WMI 查询编排，设备去重与过滤
+│   ├── audio.rs         # 音量控制（Core Audio API：设备枚举、音量/静音、默认设备切换、会话管理）
+│   ├── audio_notify.rs  # 音量变化后台轮询与事件推送
 │   ├── commands.rs      # Tauri 命令处理器
 │   ├── config.rs        # 配置管理（TOML 加载/保存）
 │   ├── device.rs        # 数据模型（Device, DevType）
 │   ├── device_data.rs   # 2.4G 设备数据加载与查询
 │   ├── popup.rs         # 弹出窗口生命周期与动画
-│   ├── tray.rs          # 系统托盘菜单与事件
+│   ├── tray.rs          # 系统托盘菜单与事件（音频设备切换、Windows 声音设置）
 │   ├── windows.rs       # 窗口创建与 DWM 圆角
 │   └── process.rs       # 进程工具（隐藏窗口、PowerShell 调用）
 ├── dist/
@@ -88,7 +96,7 @@ src-tauri/
 │   ├── scripts/
 │   │   ├── common.js    # 共享常量与工具函数
 │   │   ├── dialog.js    # 通用对话框组件
-│   │   ├── popup.js     # 主窗口逻辑
+│   │   ├── popup.js     # 主窗口逻辑（含音量控制页）
 │   │   └── settings.js  # 设置页逻辑
 │   └── styles/
 │       ├── base.css     # 基础样式
@@ -177,5 +185,6 @@ git push origin v1.0.0-beta.4
 
 ### 致谢
 
+- [EarTrumpet](https://github.com/File-New-Project/EarTrumpet) — 托盘右键菜单 Windows 声音设置快捷入口的实现参考
 - [BlueGauge](https://github.com/iKineticate/BlueGauge) — 蓝牙电量读取方案参考，windows_pnp 库来源
 - [BluetoothAutoConnect](https://github.com/lvusyy/BluetoothAutoConnect) — 蓝牙连接/断开 PowerShell 脚本参考
