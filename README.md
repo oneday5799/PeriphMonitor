@@ -61,17 +61,16 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 
 ### 设置页
 
-- 开机自启动
-- 设备过滤：正则表达式编辑、设备去重开关
-- 显示无名称蓝牙设备、使用系统蓝牙连接
-- 音量控制页/设备信息页设备列表独立显隐控制
-- 2.4G 设备列表查看与编辑
+- **通用设置**：开机自启动、运行日志（开关、级别、保留时长、查看目录）
+- **设备信息设置**：设备过滤（正则表达式编辑、设备去重）、显示无名称蓝牙设备、使用系统蓝牙连接、2.4G 设备列表、设备分组管理
+- **音量控制设置**：音量控制页设备列表独立显隐控制
 
 ### 其他
 
 - 单实例模式，重复启动时自动聚焦已有窗口
 - 设置页窗口状态自动记忆
 - 关于页面（版本信息、项目主页链接）
+- 运行日志系统：支持标准/详细两级日志，可配置保留时长（一次/一天/三天/一周/一月）
 
 ## 技术栈
 
@@ -117,7 +116,7 @@ PeriphMonitor/
 │   │   ├── popup.rs                  # 弹出窗口生命周期（toggle/open/close）与动画
 │   │   ├── tray.rs                   # 系统托盘菜单与事件处理
 │   │   ├── windows.rs                # 窗口创建与 DWM 圆角
-│   │   └── process.rs               # 进程工具（ShellExecuteW、PowerShell 调用）
+│   │   └── process.rs               # 进程工具（日志、ShellExecuteW、PowerShell 调用）
 │   ├── dist/
 │   │   ├── popup.html                # 主窗口
 │   │   ├── settings.html             # 设置页
@@ -144,9 +143,10 @@ PeriphMonitor/
 
 ### 代码组织说明
 
-- **后端**：`wmi_query.rs` 集成设备去重逻辑，`process.rs` 统一管理 ShellExecuteW 调用，`popup.rs` 提供 `compute_position()` 计算弹窗位置
-- **前端**：按功能拆分 — `popup.js` 负责设备列表，`audio.js` 负责音量控制；CSS 同理拆分为 `popup.css` 和 `audio.css`
-- **配置**：TOML 格式，包含 hidden_devices、hidden_audio_devices、device_names、device_groups 等字段
+- **后端**：`wmi_query.rs` 集成设备去重逻辑，`process.rs` 统一管理日志和 ShellExecuteW 调用，`audio.rs` 提取 `with_enumerator()` 消除 COM 初始化样板代码，`popup.rs` 提供 `compute_position()` 计算弹窗位置
+- **前端**：按功能拆分 — `popup.js` 负责设备列表，`audio.js` 负责音量控制；CSS 同理拆分为 `popup.css` 和 `audio.css`；设置页按三个标签页组织（通用/设备信息/音量控制）
+- **配置**：TOML 格式，包含 hidden_devices、hidden_audio_devices、device_names、device_groups、log_enabled、log_level、log_retention 等字段
+- **日志**：标准级别记录关键运行事件，详细级别记录诊断信息；支持按保留时长自动清理
 
 ## 2.4G 设备支持
 
