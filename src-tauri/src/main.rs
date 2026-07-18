@@ -46,7 +46,7 @@ fn main() {
         ))
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if app.get_webview_window("popup").is_some() {
-                popup::toggle(app);
+                popup::open_popup(app, "devices");
             }
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -55,8 +55,8 @@ fn main() {
             commands::get_config,
             commands::update_config,
             commands::toggle_device_hidden,
+            commands::toggle_audio_device_hidden,
             commands::open_settings,
-            commands::toggle_popup,
             commands::exit_app,
             commands::close_window,
             commands::rename_device,
@@ -83,7 +83,7 @@ fn main() {
             // 初始化音频通知回调（替代轮询）
             crate::audio_notify::init_audio_notify(app.handle().clone());
             if !is_autostart {
-                popup::toggle(app.handle());
+                popup::open_popup(app.handle(), "devices");
             }
             Ok(())
         })
@@ -95,7 +95,7 @@ fn main() {
                         && window.is_visible().unwrap_or(false)
                     {
                         let app = window.app_handle();
-                        popup::toggle(app);
+                        popup::close_popup(app);
                     }
                 }
                 tauri::WindowEvent::CloseRequested { api, .. } => {

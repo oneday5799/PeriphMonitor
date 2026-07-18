@@ -32,11 +32,6 @@ pub async fn get_devices() -> Vec<device::Device> {
 }
 
 #[tauri::command]
-pub fn toggle_popup(app: tauri::AppHandle) {
-    crate::popup::toggle(&app);
-}
-
-#[tauri::command]
 pub fn open_settings(app: tauri::AppHandle) {
     crate::windows::open_settings(&app);
 }
@@ -66,6 +61,13 @@ pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
 }
 
 #[tauri::command]
+pub fn toggle_audio_device_hidden(app: tauri::AppHandle, name: String) {
+    config::with_config_mut(|c| toggle_vec_item(&mut c.hidden_audio_devices, &name));
+    let _ = app.emit("config-changed", ());
+    let _ = app.emit("audio-devices-changed", ());
+}
+
+#[tauri::command]
 pub fn open_bt_settings() -> Result<(), String> {
     process::open_with_system("ms-settings:bluetooth")
 }
@@ -83,7 +85,7 @@ pub fn close_window(app: tauri::AppHandle, name: String) {
 }
 
 #[tauri::command]
-pub fn rename_device(original: String, new_name: String) {
+pub fn rename_device(app: tauri::AppHandle, original: String, new_name: String) {
     config::with_config_mut(|c| {
         if new_name.is_empty() {
             c.device_names.remove(&original);
@@ -91,6 +93,7 @@ pub fn rename_device(original: String, new_name: String) {
             c.device_names.insert(original, new_name);
         }
     });
+    let _ = app.emit("audio-devices-changed", ());
 }
 
 #[tauri::command]

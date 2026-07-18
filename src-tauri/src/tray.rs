@@ -111,6 +111,7 @@ fn build_full_menu(
         "开机自启"
     };
     let show_i = MenuItem::with_id(app, "show", "设备信息", true, None::<&str>)?;
+    let volume_i = MenuItem::with_id(app, "volume", "音量控制", true, None::<&str>)?;
     let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
     let about_i = MenuItem::with_id(app, "about", "关于", true, None::<&str>)?;
     let auto_i = MenuItem::with_id(app, "auto_start", auto_text, true, None::<&str>)?;
@@ -126,6 +127,7 @@ fn build_full_menu(
         app,
         &[
             &show_i,
+            &volume_i,
             &sep1,
             audio_devices_menu,
             &win_sound_menu,
@@ -163,7 +165,8 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             match event.id.as_ref() {
-                "show" => { crate::commands::toggle_popup(app.clone()); }
+                "show" => { crate::popup::open_popup(app, "devices"); }
+                "volume" => { crate::popup::open_popup(app, "volume"); }
                 "settings" => { windows::open_settings(app); }
                 "about" => { windows::open_about(app); }
                 "auto_start" => {
@@ -236,7 +239,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     return;
                 }
                 if button == tauri::tray::MouseButton::Left {
-                    popup::toggle(app);
+                    popup::toggle(app, "devices");
                 }
             }
         })
@@ -307,9 +310,16 @@ fn build_audio_devices_menu(app: &tauri::AppHandle) -> Result<Submenu<tauri::Wry
         let empty = MenuItem::with_id(app, "audio_dev_empty", "无音频设备", false, None::<&str>)?;
         submenu.append(&empty)?;
     } else {
+        let (device_names, hidden_audio) = config::with_config(|c| {
+            (c.device_names.clone(), c.hidden_audio_devices.clone())
+        });
         for device in &devices {
+            if hidden_audio.contains(&device.name) {
+                continue;
+            }
             let check = if device.is_default { " ✓" } else { "" };
-            let label = format!("{}{}", device.name, check);
+            let display = device_names.get(&device.name).unwrap_or(&device.name);
+            let label = format!("{}{}", display, check);
             let item = MenuItem::with_id(app, format!("audio_dev_{}", device.id), label, true, None::<&str>)?;
             submenu.append(&item)?;
         }

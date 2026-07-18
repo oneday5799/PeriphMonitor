@@ -16,6 +16,8 @@ pub struct Config {
     pub use_system_bt: bool,
     #[serde(default)]
     pub tray_devices: Vec<String>,
+    #[serde(default)]
+    pub hidden_audio_devices: Vec<String>,
 }
 
 impl Default for Config {
@@ -32,6 +34,7 @@ impl Default for Config {
             show_unnamed_bt: false,
             use_system_bt: false,
             tray_devices: vec![],
+            hidden_audio_devices: vec![],
         }
     }
 }

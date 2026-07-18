@@ -1,6 +1,9 @@
 let audioDevices = [];
 let audioSessions = [];
 let selectedDeviceId = null;
+let hiddenAudioDevices = [];
+let audioDeviceNames = {};
+let activeAudioMenu = null;
 
 function updateSessionCard(session) {
   const cards = document.querySelectorAll('.audio-session-card');
@@ -157,6 +160,125 @@ function createSliderTooltip(slider) {
   return tooltip;
 }
 
+function hideAudioContextMenu() {
+  if (activeAudioMenu) {
+    activeAudioMenu.remove();
+    activeAudioMenu = null;
+  }
+}
+
+document.addEventListener("click", hideAudioContextMenu);
+
+function showAudioContextMenu(x, y, device) {
+  hideAudioContextMenu();
+  const invoke = getInvoke();
+  if (!invoke) return;
+
+  const menu = document.createElement("div");
+  menu.className = "context-menu";
+
+  const renameItem = document.createElement("div");
+  renameItem.className = "context-menu-item";
+  renameItem.textContent = "重命名";
+  renameItem.addEventListener("click", () => {
+    hideAudioContextMenu();
+    showAudioRenameDialog(device);
+  });
+  menu.appendChild(renameItem);
+
+  const hideItem = document.createElement("div");
+  hideItem.className = "context-menu-item";
+  hideItem.textContent = "隐藏";
+  hideItem.addEventListener("click", async () => {
+    await invoke("toggle_audio_device_hidden", { name: device.name });
+    const config = await invoke("get_config");
+    hiddenAudioDevices = config.hidden_audio_devices || [];
+    renderAudioDevices();
+    hideAudioContextMenu();
+  });
+  menu.appendChild(hideItem);
+
+  document.body.appendChild(menu);
+
+  const menuW = menu.offsetWidth;
+  const menuH = menu.offsetHeight;
+  let posX = x;
+  let posY = y;
+
+  if (x + menuW > window.innerWidth) posX = x - menuW;
+  if (y + menuH > window.innerHeight) posY = y - menuH;
+  if (posX < 0) posX = 0;
+  if (posY < 0) posY = 0;
+
+  menu.style.left = posX + "px";
+  menu.style.top = posY + "px";
+  activeAudioMenu = menu;
+}
+
+function showAudioRenameDialog(device) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "dialog-input";
+  input.value = audioDeviceNames[device.name] || device.name;
+  input.placeholder = "输入新名称";
+
+  const isRenamed = audioDeviceNames[device.name] !== undefined;
+
+  const buttons = [];
+
+  if (isRenamed) {
+    buttons.push({
+      text: "恢复默认",
+      className: "restore",
+      onClick: async () => {
+        const invoke = getInvoke();
+        if (invoke) {
+          await invoke("rename_device", { original: device.name, newName: "" });
+          const config = await invoke("get_config");
+          audioDeviceNames = config.device_names || {};
+          renderAudioDevices();
+        }
+        closeDialog(overlay);
+      },
+    });
+  }
+
+  buttons.push({
+    text: "取消",
+    className: "cancel",
+    onClick: () => closeDialog(overlay),
+  });
+
+  buttons.push({
+    text: "确定",
+    className: "confirm",
+    onClick: async () => {
+      const newName = input.value.trim();
+      const invoke = getInvoke();
+      if (invoke) {
+        await invoke("rename_device", { original: device.name, newName });
+        const config = await invoke("get_config");
+        audioDeviceNames = config.device_names || {};
+        renderAudioDevices();
+      }
+      closeDialog(overlay);
+    },
+  });
+
+  const overlay = createDialog({
+    title: "重命名设备",
+    content: [input],
+    buttons,
+  });
+
+  input.focus();
+  input.select();
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") overlay.querySelector(".dialog-btn.confirm")?.click();
+  });
+}
+
 async function loadAudioDevices() {
   const list = document.getElementById("audio-device-list");
   const invoke = getInvoke();
@@ -164,12 +286,14 @@ async function loadAudioDevices() {
     return;
   }
   try {
-    const devices = await invoke("get_audio_devices");
-    console.log("[Volume] Loaded devices:", JSON.stringify(devices.map(d => ({id: d.id, name: d.name, volume: d.volume}))));
+    const [devices, cfg] = await Promise.all([invoke("get_audio_devices"), invoke("get_config")]);
     audioDevices = devices;
+    hiddenAudioDevices = cfg.hidden_audio_devices || [];
+    audioDeviceNames = cfg.device_names || {};
     renderAudioDevices();
     if (audioDevices.length > 0 && !selectedDeviceId) {
-      selectDevice(audioDevices[0].id);
+      const firstVisible = audioDevices.find(d => !hiddenAudioDevices.includes(d.name));
+      if (firstVisible) selectDevice(firstVisible.id);
     }
   } catch (e) {
     if (list.querySelectorAll('.audio-device-card').length === 0) {
@@ -180,8 +304,11 @@ async function loadAudioDevices() {
 
 function renderAudioDevices() {
   const list = document.getElementById("audio-device-list");
-  if (audioDevices.length === 0) {
-    list.innerHTML = '<div class="loading">没有检测到音频设备</div>';
+  const visibleDevices = audioDevices.filter(d => !hiddenAudioDevices.includes(d.name));
+  if (visibleDevices.length === 0) {
+    list.innerHTML = audioDevices.length === 0
+      ? '<div class="loading">没有检测到音频设备</div>'
+      : '<div class="loading">所有音频设备已隐藏</div>';
     return;
   }
 
@@ -192,7 +319,7 @@ function renderAudioDevices() {
     existingCards.set(card.dataset.deviceId, card);
   });
 
-  const newIds = new Set(audioDevices.map(d => d.id));
+  const newIds = new Set(visibleDevices.map(d => d.id));
 
   existingCards.forEach((card, id) => {
     if (!newIds.has(id)) {
@@ -200,7 +327,7 @@ function renderAudioDevices() {
     }
   });
 
-  for (const device of audioDevices) {
+  for (const device of visibleDevices) {
     let card = existingCards.get(device.id);
 
     if (card) {
@@ -216,6 +343,7 @@ function createAudioDeviceCard(device) {
   const card = document.createElement("div");
   card.className = "audio-device-card";
   card.dataset.deviceId = device.id;
+  card.dataset.deviceName = device.name;
   if (device.id === selectedDeviceId) {
     card.classList.add("selected");
   }
@@ -225,7 +353,7 @@ function createAudioDeviceCard(device) {
 
   const nameEl = document.createElement("div");
   nameEl.className = "audio-device-name" + (device.is_default ? " default" : "");
-  nameEl.textContent = device.name;
+  nameEl.textContent = audioDeviceNames[device.name] || device.name;
   if (device.is_default) {
     const badge = document.createElement("span");
     badge.className = "default-badge";
@@ -298,6 +426,11 @@ function createAudioDeviceCard(device) {
     }
   });
 
+  card.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    showAudioContextMenu(e.clientX, e.clientY, device);
+  });
+
   return card;
 }
 
@@ -310,6 +443,13 @@ function updateAudioDeviceCard(card, device) {
 
   const nameEl = card.querySelector('.audio-device-name');
   if (nameEl) {
+    const displayName = audioDeviceNames[device.name] || device.name;
+    const firstChild = nameEl.firstChild;
+    if (firstChild && firstChild.nodeType === Node.TEXT_NODE) {
+      if (firstChild.textContent !== displayName) {
+        firstChild.textContent = displayName;
+      }
+    }
     if (device.is_default) {
       nameEl.classList.add("default");
       if (!nameEl.querySelector('.default-badge')) {

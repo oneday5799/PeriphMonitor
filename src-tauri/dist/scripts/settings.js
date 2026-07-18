@@ -71,6 +71,7 @@ async function init() {
     });
 
     loadDevicesAsync();
+    loadAudioDevicesAsync();
 
     // Open 2.4G device list button
     document.getElementById("btn-add-24g").addEventListener("click", async () => {
@@ -196,7 +197,7 @@ function renderGroups() {
 
       const nameEl = document.createElement("div");
       nameEl.className = "device-item-name";
-      nameEl.textContent = getDisplayName(dev, deviceNames);
+      nameEl.textContent = dev.name;
 
       const isHidden = config.hidden_devices.includes(dev.name);
       if (isHidden) nameEl.classList.add("hidden");
@@ -240,6 +241,81 @@ function renderGroups() {
 listen("config-changed", async () => {
   config = await invoke("get_config");
   loadDevicesAsync();
+  loadAudioDevicesAsync();
 });
+
+async function loadAudioDevicesAsync() {
+  try {
+    config = await invoke("get_config");
+    const audioDevices = await invoke("get_audio_devices");
+    renderAudioDeviceGroups(audioDevices);
+  } catch (e) {
+    console.error("Failed to load audio devices:", e);
+  }
+}
+
+function renderAudioDeviceGroups(audioDevices) {
+  const container = document.getElementById("audio-device-groups");
+  container.innerHTML = "";
+
+  if (audioDevices.length === 0) {
+    container.innerHTML = '<div class="device-item"><div class="device-item-name" style="color:#888">没有检测到音频设备</div></div>';
+    return;
+  }
+
+  const groupEl = document.createElement("div");
+  groupEl.className = "group";
+
+  const card = document.createElement("div");
+  card.className = "group-card";
+
+  const items = document.createElement("div");
+  items.className = "group-items show";
+  items.style.maxHeight = "none";
+
+  for (const dev of audioDevices) {
+    const item = document.createElement("div");
+    item.className = "device-item";
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "device-item-name";
+    nameEl.textContent = dev.name;
+    if (dev.is_default) {
+      const badge = document.createElement("span");
+      badge.style.cssText = "font-size:12px;color:#0078d7;margin-left:6px";
+      badge.textContent = "(默认)";
+      nameEl.appendChild(badge);
+    }
+
+    const isHidden = (config.hidden_audio_devices || []).includes(dev.name);
+    if (isHidden) nameEl.classList.add("hidden");
+
+    const toggle = document.createElement("label");
+    toggle.className = "toggle";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = !isHidden;
+    input.addEventListener("change", async () => {
+      await invoke("toggle_audio_device_hidden", { name: dev.name });
+      config = await invoke("get_config");
+      nameEl.classList.toggle("hidden", !input.checked);
+    });
+
+    const slider = document.createElement("span");
+    slider.className = "slider";
+
+    toggle.appendChild(input);
+    toggle.appendChild(slider);
+
+    item.appendChild(nameEl);
+    item.appendChild(toggle);
+    items.appendChild(item);
+  }
+
+  card.appendChild(items);
+  groupEl.appendChild(card);
+  container.appendChild(groupEl);
+}
 
 init();

@@ -606,3 +606,18 @@ document.querySelectorAll('.tab-title').forEach(tab => {
     }
   });
 });
+
+function switchToTab(tabName) {
+  const target = document.querySelector(`.tab-title[data-tab="${tabName}"]`);
+  if (target) target.click();
+}
+
+if (location.hash === '#volume') {
+  switchToTab('volume');
+}
+
+if (window.__TAURI__ && window.__TAURI__.event) {
+  window.__TAURI__.event.listen('switch-tab', (e) => {
+    switchToTab(e.payload);
+  });
+}

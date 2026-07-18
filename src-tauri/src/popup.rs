@@ -1,5 +1,6 @@
 use std::sync::atomic::Ordering;
 use tauri::Manager;
+use tauri::Emitter;
 
 use crate::windows;
 use crate::state::{TRAY_POS, POPUP_POS, ANIMATING};
@@ -27,7 +28,7 @@ fn cubic_bezier(t: f64) -> f64 {
         + t_param.powi(3)
 }
 
-pub fn toggle(app: &tauri::AppHandle) {
+pub fn toggle(app: &tauri::AppHandle, tab: &str) {
     if ANIMATING.load(Ordering::Relaxed) {
         return;
     }
@@ -51,10 +52,43 @@ pub fn toggle(app: &tauri::AppHandle) {
         if window.is_visible().unwrap_or(false) {
             close(app, &window, target_x, target_y, start_y);
         } else {
+            let _ = app.emit("switch-tab", tab);
             show(app, &window, target_x, start_y, target_y);
         }
     } else {
-        create(app, target_x, target_y);
+        create(app, target_x, target_y, tab);
+    }
+}
+
+pub fn open_popup(app: &tauri::AppHandle, tab: &str) {
+    if ANIMATING.load(Ordering::Relaxed) {
+        return;
+    }
+
+    let sf = windows::scale_factor(app);
+    let screen_h = app.primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.size().height as f64 / sf)
+        .unwrap_or(1080.0);
+
+    let (tray_x, tray_y) = TRAY_POS.get()
+        .map(|m| *m.lock().unwrap())
+        .unwrap_or((100.0, screen_h - 50.0));
+
+    let target_x = tray_x - POPUP_W / 2.0;
+    let target_y = tray_y - POPUP_H - 15.0;
+    let start_y = screen_h + 10.0;
+
+    if let Some(window) = app.get_webview_window("popup") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = app.emit("switch-tab", tab);
+        } else {
+            let _ = app.emit("switch-tab", tab);
+            show(app, &window, target_x, start_y, target_y);
+        }
+    } else {
+        create(app, target_x, target_y, tab);
     }
 }
 
@@ -77,6 +111,29 @@ fn close(
     });
 }
 
+pub fn close_popup(app: &tauri::AppHandle) {
+    if ANIMATING.load(Ordering::Relaxed) {
+        return;
+    }
+    let sf = windows::scale_factor(app);
+    let screen_h = app.primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.size().height as f64 / sf)
+        .unwrap_or(1080.0);
+    let (tray_x, tray_y) = TRAY_POS.get()
+        .map(|m| *m.lock().unwrap())
+        .unwrap_or((100.0, screen_h - 50.0));
+    let target_x = tray_x - POPUP_W / 2.0;
+    let target_y = tray_y - POPUP_H - 15.0;
+    let start_y = screen_h + 10.0;
+    if let Some(window) = app.get_webview_window("popup") {
+        if window.is_visible().unwrap_or(false) {
+            close(app, &window, target_x, target_y, start_y);
+        }
+    }
+}
+
 fn show(
     _app: &tauri::AppHandle,
     window: &tauri::WebviewWindow,
@@ -97,9 +154,14 @@ fn show(
     });
 }
 
-fn create(app: &tauri::AppHandle, target_x: f64, target_y: f64) {
+fn create(app: &tauri::AppHandle, target_x: f64, target_y: f64, tab: &str) {
+    let url = if tab == "volume" {
+        "popup.html#volume".to_string()
+    } else {
+        "popup.html".to_string()
+    };
     if let Ok(win) = tauri::WebviewWindowBuilder::new(
-        app, "popup", tauri::WebviewUrl::App("popup.html".into()),
+        app, "popup", tauri::WebviewUrl::App(url.into()),
     )
     .title("外设信息")
     .inner_size(POPUP_W, POPUP_H)
