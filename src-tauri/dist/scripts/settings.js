@@ -5,7 +5,6 @@ let config = null;
 let devices = [];
 let expandedGroups = new Set();
 let deviceGroups = {};
-let deviceNames = {};
 
 async function init() {
   try {
@@ -91,7 +90,6 @@ async function loadDevicesAsync() {
     config = await invoke("get_config");
     devices = await invoke("get_devices");
     deviceGroups = config.device_groups || {};
-    deviceNames = config.device_names || {};
     renderGroups();
   } catch (e) {
     console.error("Failed to load devices:", e);

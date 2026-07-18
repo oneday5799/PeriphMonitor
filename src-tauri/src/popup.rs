@@ -28,25 +28,29 @@ fn cubic_bezier(t: f64) -> f64 {
         + t_param.powi(3)
 }
 
-pub fn toggle(app: &tauri::AppHandle, tab: &str) {
-    if ANIMATING.load(Ordering::Relaxed) {
-        return;
-    }
-
+/// 计算弹窗位置参数：(target_x, target_y, start_y)
+fn compute_position(app: &tauri::AppHandle) -> (f64, f64, f64) {
     let sf = windows::scale_factor(app);
     let screen_h = app.primary_monitor()
         .ok()
         .flatten()
         .map(|m| m.size().height as f64 / sf)
         .unwrap_or(1080.0);
-
     let (tray_x, tray_y) = TRAY_POS.get()
         .map(|m| *m.lock().unwrap())
         .unwrap_or((100.0, screen_h - 50.0));
-
     let target_x = tray_x - POPUP_W / 2.0;
     let target_y = tray_y - POPUP_H - 15.0;
     let start_y = screen_h + 10.0;
+    (target_x, target_y, start_y)
+}
+
+pub fn toggle(app: &tauri::AppHandle, tab: &str) {
+    if ANIMATING.load(Ordering::Relaxed) {
+        return;
+    }
+
+    let (target_x, target_y, start_y) = compute_position(app);
 
     if let Some(window) = app.get_webview_window("popup") {
         if window.is_visible().unwrap_or(false) {
@@ -65,20 +69,7 @@ pub fn open_popup(app: &tauri::AppHandle, tab: &str) {
         return;
     }
 
-    let sf = windows::scale_factor(app);
-    let screen_h = app.primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| m.size().height as f64 / sf)
-        .unwrap_or(1080.0);
-
-    let (tray_x, tray_y) = TRAY_POS.get()
-        .map(|m| *m.lock().unwrap())
-        .unwrap_or((100.0, screen_h - 50.0));
-
-    let target_x = tray_x - POPUP_W / 2.0;
-    let target_y = tray_y - POPUP_H - 15.0;
-    let start_y = screen_h + 10.0;
+    let (target_x, target_y, start_y) = compute_position(app);
 
     if let Some(window) = app.get_webview_window("popup") {
         if window.is_visible().unwrap_or(false) {
@@ -115,18 +106,7 @@ pub fn close_popup(app: &tauri::AppHandle) {
     if ANIMATING.load(Ordering::Relaxed) {
         return;
     }
-    let sf = windows::scale_factor(app);
-    let screen_h = app.primary_monitor()
-        .ok()
-        .flatten()
-        .map(|m| m.size().height as f64 / sf)
-        .unwrap_or(1080.0);
-    let (tray_x, tray_y) = TRAY_POS.get()
-        .map(|m| *m.lock().unwrap())
-        .unwrap_or((100.0, screen_h - 50.0));
-    let target_x = tray_x - POPUP_W / 2.0;
-    let target_y = tray_y - POPUP_H - 15.0;
-    let start_y = screen_h + 10.0;
+    let (target_x, target_y, start_y) = compute_position(app);
     if let Some(window) = app.get_webview_window("popup") {
         if window.is_visible().unwrap_or(false) {
             close(app, &window, target_x, target_y, start_y);
