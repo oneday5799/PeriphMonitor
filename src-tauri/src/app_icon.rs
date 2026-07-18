@@ -47,8 +47,8 @@ fn get_icon_from_path(path: &str) -> Option<String> {
         let icon_count = windows::Win32::UI::WindowsAndMessaging::PrivateExtractIconsW(
             &path_buf,
             0,
-            32,
-            32,
+            64,
+            64,
             Some(&mut icons),
             None,
             0,
@@ -71,8 +71,8 @@ fn get_icon_from_path(path: &str) -> Option<String> {
 unsafe fn get_icon_bitmap(hicon: windows::Win32::UI::WindowsAndMessaging::HICON) -> Option<RgbaImage> {
     use windows::Win32::Graphics::Gdi::*;
 
-    let width = 32i32;
-    let height = 32i32;
+    let width = 64i32;
+    let height = 64i32;
 
     // 创建设备上下文
     let hdc_screen = GetDC(Some(windows::Win32::Foundation::HWND(std::ptr::null_mut())));

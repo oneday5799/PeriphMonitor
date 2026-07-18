@@ -301,7 +301,7 @@ pub fn update_auto_text() {
 
 /// 构建音频设备切换子菜单
 fn build_audio_devices_menu(app: &tauri::AppHandle) -> Result<Submenu<tauri::Wry>, Box<dyn std::error::Error>> {
-    let submenu = Submenu::with_id(app, "audio_devices", "切换音频设备", true)?;
+    let submenu = Submenu::with_id(app, "audio_devices", "音频设备", true)?;
     let devices = audio::enumerate_output_devices().unwrap_or_default();
     if devices.is_empty() {
         let empty = MenuItem::with_id(app, "audio_dev_empty", "无音频设备", false, None::<&str>)?;
@@ -342,7 +342,7 @@ pub fn update_audio_devices_menu() {
 
 /// 构建 Windows 声音设置子菜单
 fn build_windows_sound_settings_menu(app: &tauri::AppHandle) -> Result<Submenu<tauri::Wry>, Box<dyn std::error::Error>> {
-    let submenu = Submenu::with_id(app, "win_sound", "Windows 声音设置", true)?;
+    let submenu = Submenu::with_id(app, "win_sound", "声音设置", true)?;
     let items = [
         ("win_sound_volume_mixer", "音量合成器 (Classic)"),
         ("win_sound_playback", "播放设备 (Classic)"),

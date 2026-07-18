@@ -11,10 +11,6 @@ function updateSessionCard(session) {
         slider.value = Math.round(session.volume * 100);
         updateSliderGradient(slider);
       }
-      const valueEl = card.querySelector('.volume-value');
-      if (valueEl) {
-        valueEl.textContent = `${Math.round(session.volume * 100)}%`;
-      }
       const muteBtn = card.querySelector('.mute-btn');
       if (muteBtn) {
         muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
@@ -65,10 +61,6 @@ function updateDeviceCard(device) {
     slider.value = Math.round(device.volume * 100);
     updateSliderGradient(slider);
   }
-  const valueEl = targetCard.querySelector('.volume-value');
-  if (valueEl) {
-    valueEl.textContent = `${Math.round(device.volume * 100)}%`;
-  }
   const muteBtn = targetCard.querySelector('.mute-btn');
   if (muteBtn) {
     muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
@@ -80,6 +72,89 @@ function updateSliderGradient(slider) {
   const value = slider.value;
   const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
   slider.style.setProperty('--track-color', `linear-gradient(to right, #0078d7 0%, #0078d7 ${percentage}%, #e0e0e0 ${percentage}%, #e0e0e0 100%)`);
+}
+
+function createSliderTooltip(slider) {
+  const tooltip = document.createElement("div");
+  tooltip.className = "slider-tooltip";
+  tooltip.textContent = slider.value;
+  tooltip.style.display = "none";
+  slider.parentElement.style.position = "relative";
+  slider.parentElement.appendChild(tooltip);
+
+  let hideTimer = null;
+  let isDragging = false;
+
+  function positionTooltip() {
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    const val = parseFloat(slider.value);
+    const pct = (val - min) / (max - min);
+    const trackWidth = slider.offsetWidth;
+    const thumbWidth = 18;
+    const center = thumbWidth / 2 + pct * (trackWidth - thumbWidth);
+    tooltip.textContent = slider.value;
+    tooltip.style.left = `${center}px`;
+  }
+
+  function showTooltip() {
+    tooltip.style.display = "";
+    positionTooltip();
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { tooltip.style.display = "none"; }, 2000);
+  }
+
+  function hideTooltip() {
+    clearTimeout(hideTimer);
+    tooltip.style.display = "none";
+  }
+
+  function isOverThumb(e) {
+    const rect = slider.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const trackWidth = rect.width;
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    const val = parseFloat(slider.value);
+    const pct = (val - min) / (max - min);
+    const thumbWidth = 18;
+    const thumbCenter = thumbWidth / 2 + pct * (trackWidth - thumbWidth);
+    return Math.abs(mouseX - thumbCenter) <= thumbWidth / 2 + 4;
+  }
+
+  slider.addEventListener("mousemove", (e) => {
+    if (isDragging || isOverThumb(e)) {
+      showTooltip();
+    } else {
+      hideTooltip();
+    }
+  });
+
+  slider.addEventListener("mouseenter", () => {
+    if (isDragging) showTooltip();
+  });
+
+  slider.addEventListener("mouseleave", () => {
+    if (!isDragging) hideTooltip();
+  });
+
+  slider.addEventListener("mousedown", () => {
+    isDragging = true;
+    showTooltip();
+  });
+
+  slider.addEventListener("blur", () => {
+    isDragging = false;
+    hideTooltip();
+  });
+
+  document.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
+
+  slider.addEventListener("input", showTooltip);
+
+  return tooltip;
 }
 
 async function loadAudioDevices() {
@@ -201,18 +276,13 @@ function createAudioDeviceCard(device) {
   slider.addEventListener("input", (e) => {
     const value = parseInt(e.target.value) / 100;
     device.volume = value;
-    updateVolumeDisplay(device.id, e.target.value);
     updateSliderGradient(e.target);
     throttledSetDeviceVolume(device.id, value);
   });
   updateSliderGradient(slider);
   controls.appendChild(slider);
 
-  const valueEl = document.createElement("span");
-  valueEl.className = "volume-value";
-  valueEl.id = `volume-value-${device.id}`;
-  valueEl.textContent = `${Math.round(device.volume * 100)}%`;
-  controls.appendChild(valueEl);
+  createSliderTooltip(slider);
 
   const muteBtn = document.createElement("button");
   muteBtn.className = "mute-btn" + (device.is_muted ? " muted" : "");
@@ -259,11 +329,6 @@ function updateAudioDeviceCard(card, device) {
   if (slider && document.activeElement !== slider) {
     slider.value = Math.round(device.volume * 100);
     updateSliderGradient(slider);
-  }
-
-  const valueEl = card.querySelector('.volume-value');
-  if (valueEl) {
-    valueEl.textContent = `${Math.round(device.volume * 100)}%`;
   }
 
   const muteBtn = card.querySelector('.mute-btn');
@@ -371,17 +436,12 @@ function createAudioSessionCard(session) {
     const sess = audioSessions.find(s => s.id === card.dataset.sessionId);
     if (sess) sess.volume = value;
     updateSliderGradient(e.target);
-    const valEl = card.querySelector('.volume-value');
-    if (valEl) valEl.textContent = `${e.target.value}%`;
     throttledSetSessionVolume(card.dataset.sessionId, value);
   });
   updateSliderGradient(slider);
   controls.appendChild(slider);
 
-  const valueEl = document.createElement("span");
-  valueEl.className = "volume-value";
-  valueEl.textContent = `${Math.round(session.volume * 100)}%`;
-  controls.appendChild(valueEl);
+  createSliderTooltip(slider);
 
   const muteBtn = document.createElement("button");
   muteBtn.className = "mute-btn" + (session.is_muted ? " muted" : "");
@@ -407,11 +467,6 @@ function updateAudioSessionCard(card, session) {
   if (slider && document.activeElement !== slider) {
     slider.value = Math.round(session.volume * 100);
     updateSliderGradient(slider);
-  }
-
-  const valueEl = card.querySelector('.volume-value');
-  if (valueEl) {
-    valueEl.textContent = `${Math.round(session.volume * 100)}%`;
   }
 
   const muteBtn = card.querySelector('.mute-btn');
@@ -463,13 +518,6 @@ async function toggleSessionMute(sessionId) {
     await invoke("toggle_session_mute", { sessionId });
   } catch (e) {
     console.error("Failed to toggle session mute:", e);
-  }
-}
-
-function updateVolumeDisplay(deviceId, value) {
-  const valueEl = document.getElementById(`volume-value-${deviceId}`);
-  if (valueEl) {
-    valueEl.textContent = `${value}%`;
   }
 }
 

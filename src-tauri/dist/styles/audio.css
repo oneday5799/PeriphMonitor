@@ -147,12 +147,23 @@
   color: #e74c3c;
 }
 
-/* Volume value */
-.volume-value {
-  font-size: 12px;
-  color: #888;
-  width: 35px;
-  text-align: right;
+/* Slider tooltip */
+.slider-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
 
 /* Audio session card */

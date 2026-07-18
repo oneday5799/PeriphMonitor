@@ -530,17 +530,19 @@ function hideContextMenu() {
 
 document.addEventListener("click", hideContextMenu);
 
-document.getElementById("btn-refresh").addEventListener("click", () => {
+document.getElementById("btn-refresh").addEventListener("click", async () => {
   const activeTab = document.querySelector('.tab-title.active');
   if (activeTab) {
     const tabName = activeTab.dataset.tab;
     if (tabName === 'devices') {
-      loadDevices();
+      await loadDevices();
+      showToast("已刷新");
     } else if (tabName === 'volume') {
-      loadAudioDevices();
+      await loadAudioDevices();
       if (selectedDeviceId) {
-        loadAudioSessions(selectedDeviceId);
+        await loadAudioSessions(selectedDeviceId);
       }
+      showToast("已刷新");
     }
   }
 });
