@@ -75,11 +75,16 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 ## 截图
 
 - 设备信息
-<img width="300" height="390" alt="设备信息" src="https://github.com/user-attachments/assets/15badf0e-34c1-480f-a5ce-c40a3ecfd65f" />
+  
+  <img width="300" height="390" alt="设备信息" src="https://github.com/user-attachments/assets/15badf0e-34c1-480f-a5ce-c40a3ecfd65f" />
+  
 - 音量控制
-<img width="300" height="390" alt="音量控制" src="https://github.com/user-attachments/assets/a3588cf4-332f-470f-9c5b-e3b09698e5bf" />
+  
+  <img width="300" height="390" alt="音量控制" src="https://github.com/user-attachments/assets/a3588cf4-332f-470f-9c5b-e3b09698e5bf" />
+  
 - 托盘提示
-<img width="300" height="100" alt="托盘提示" src="https://github.com/user-attachments/assets/68e51f47-3d78-43fc-baa4-67c753301566" />
+  
+  <img width="300" height="100" alt="托盘提示" src="https://github.com/user-attachments/assets/68e51f47-3d78-43fc-baa4-67c753301566" />
 
 ## 技术栈
 
