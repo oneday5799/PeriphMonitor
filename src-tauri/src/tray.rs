@@ -35,13 +35,9 @@ pub fn refresh_devices_cache() -> bool {
 
 /// 根据缓存的设备信息构建 tooltip 文本
 pub fn build_tooltip_text() -> String {
-    let tray_devices = config::with_config(|c| c.tray_devices.clone());
-
-    if tray_devices.is_empty() {
-        return "外设监控".to_string();
-    }
-
-    let device_names = config::with_config(|c| c.device_names.clone());
+    let (tray_devices, device_names) = config::with_config(|c| {
+        (c.tray_devices.clone(), c.device_names.clone())
+    });
     let cache = get_devices_cache();
     let devices = cache.lock().unwrap_or_else(|e| e.into_inner());
 
@@ -192,18 +188,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 "win_sound_volume_mixer" => {
-                    let wide_file = crate::process::to_wide("sndvol.exe");
-                    let wide_verb = crate::process::to_wide("open");
-                    unsafe {
-                        windows_sys::Win32::UI::Shell::ShellExecuteW(
-                            std::ptr::null_mut(),
-                            wide_verb.as_ptr(),
-                            wide_file.as_ptr(),
-                            std::ptr::null(),
-                            std::ptr::null(),
-                            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-                        );
-                    }
+                    let _ = crate::process::open_with_system("sndvol.exe");
                 }
                 "win_sound_playback" => {
                     crate::process::open_sound_panel("playback");

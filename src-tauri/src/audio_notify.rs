@@ -3,10 +3,17 @@ use std::time::Duration;
 use tauri::Emitter;
 use windows::Win32::System::Com::*;
 
+type DeviceSnapshot = Vec<(String, f32, bool)>;
+
+/// 从设备列表提取快照元组
+fn snapshot_devices(devices: &[crate::audio::AudioDevice]) -> DeviceSnapshot {
+    devices.iter().map(|d| (d.id.clone(), d.volume, d.is_muted)).collect()
+}
+
 /// 音频通知回调结构体
 struct AudioNotifyCallback {
     app_handle: tauri::AppHandle,
-    last_volume: Arc<Mutex<Vec<(String, f32, bool)>>>,
+    last_volume: Arc<Mutex<DeviceSnapshot>>,
 }
 
 impl AudioNotifyCallback {
@@ -19,10 +26,7 @@ impl AudioNotifyCallback {
 
     fn check_and_emit(&self) {
         if let Ok(devices) = crate::audio::enumerate_output_devices() {
-            let current: Vec<(String, f32, bool)> = devices
-                .iter()
-                .map(|d| (d.id.clone(), d.volume, d.is_muted))
-                .collect();
+            let current = snapshot_devices(&devices);
 
             let mut last = self.last_volume.lock().unwrap();
             let mut changed = false;
@@ -78,11 +82,7 @@ pub fn init_audio_notify(app_handle: tauri::AppHandle) {
 
     // 初始化时获取一次当前状态
     if let Ok(devices) = crate::audio::enumerate_output_devices() {
-        let current: Vec<(String, f32, bool)> = devices
-            .iter()
-            .map(|d| (d.id.clone(), d.volume, d.is_muted))
-            .collect();
-        *callback.last_volume.lock().unwrap() = current;
+        *callback.last_volume.lock().unwrap() = snapshot_devices(&devices);
     }
 
     // 启动监听线程（低频率检查）

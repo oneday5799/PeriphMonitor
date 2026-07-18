@@ -9,7 +9,7 @@ use crate::classify::{classify_device, classify_bluetooth, is_wireless_24g_by_vi
 use crate::device_data;
 use crate::bluetooth::find_paired_bluetooth_devices;
 
-pub fn core_name(n: &str) -> String {
+fn core_name(n: &str) -> String {
     let inner = if let Some(i) = n.find(" (") {
         if let Some(j) = n.rfind(')') {
             if j > i + 2 {
@@ -48,7 +48,7 @@ pub fn core_name(n: &str) -> String {
     inner
 }
 
-pub fn try_insert(
+fn try_insert(
     name: &str,
     display_name: Option<&str>,
     dt: DevType,

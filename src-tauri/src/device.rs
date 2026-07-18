@@ -6,7 +6,6 @@ use std::sync::{Mutex, OnceLock};
 pub enum DevType {
     Audio,
     Battery,
-    Bluetooth,
     Monitor,
     Other,
     Usb,
