@@ -11,72 +11,32 @@
   <div class="settings-container" id="app">
     <h1 class="page-title">设置</h1>
 
-    <!-- Auto start -->
-    <div class="setting-row">
-      <span class="setting-label">开机自启动</span>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-autostart">
-        <span class="slider"></span>
-      </label>
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <div class="tab-item active" data-tab="general">通用设置</div>
+      <div class="tab-item" data-tab="device">设备信息设置</div>
+      <div class="tab-item" data-tab="audio">音量控制设置</div>
     </div>
 
-    <!-- Device filter -->
-    <div class="setting-row">
-      <span class="setting-label">设备过滤</span>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-filter">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="filter-regex-wrap" id="filter-regex-wrap">
-      <textarea id="filter-regex" class="filter-textarea" rows="4" spellcheck="false"></textarea>
-      <div class="filter-hint">匹配设备名称的正则表达式，不区分大小写。匹配到的设备将被隐藏。</div>
-    </div>
-
-    <!-- Device dedup -->
-    <div class="setting-row">
-      <span class="setting-label">设备去重</span>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-dedup">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <!-- Show unnamed BT devices -->
-    <div class="setting-row">
-      <span class="setting-label">显示无名称蓝牙设备</span>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-unnamed-bt">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <!-- Use system Bluetooth connection -->
-    <div class="setting-row setting-row-col">
-      <div class="setting-row-top">
-        <span class="setting-label">使用系统蓝牙连接
-          <span class="tooltip-trigger">?
-            <span class="tooltip-content">应用内通过启用/禁用蓝牙服务来实现连接/断开蓝牙设备连接，可能会出现兼容性问题，如果出现问题可打开此开关通过跳转到系统蓝牙设置页进行管理。</span>
-          </span>
-        </span>
+    <!-- Tab: General -->
+    <div class="tab-content active" id="tab-general">
+      <div class="setting-row">
+        <span class="setting-label">开机自启动</span>
         <label class="toggle">
-          <input type="checkbox" id="toggle-use-system-bt">
+          <input type="checkbox" id="toggle-autostart">
           <span class="slider"></span>
         </label>
       </div>
-    </div>
 
-    <div class="separator"></div>
+      <div class="separator"></div>
 
-    <!-- Logging settings -->
-    <div class="setting-row">
-      <span class="setting-label">运行日志</span>
-      <label class="toggle">
-        <input type="checkbox" id="toggle-log">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <div class="log-settings" id="log-settings">
+      <div class="setting-row">
+        <span class="setting-label">运行日志</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-log">
+          <span class="slider"></span>
+        </label>
+      </div>
       <div class="setting-row">
         <span class="setting-label">日志级别</span>
         <select class="setting-select" id="log-level">
@@ -100,28 +60,72 @@
       </div>
     </div>
 
-    <div class="separator"></div>
+    <!-- Tab: Device Info -->
+    <div class="tab-content" id="tab-device">
+      <div class="setting-row">
+        <span class="setting-label">设备过滤</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-filter">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="filter-regex-wrap" id="filter-regex-wrap">
+        <textarea id="filter-regex" class="filter-textarea" rows="4" spellcheck="false"></textarea>
+        <div class="filter-hint">匹配设备名称的正则表达式，不区分大小写。匹配到的设备将被隐藏。</div>
+      </div>
 
-    <div class="setting-row">
-      <span class="setting-label">查看/修改 2.4G 设备列表</span>
-      <button class="add-device-btn" id="btn-add-24g">打开</button>
+      <div class="setting-row">
+        <span class="setting-label">设备去重</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-dedup">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">显示无名称蓝牙设备</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-unnamed-bt">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-row setting-row-col">
+        <div class="setting-row-top">
+          <span class="setting-label">使用系统蓝牙连接
+            <span class="tooltip-trigger">?
+              <span class="tooltip-content">应用内通过启用/禁用蓝牙服务来实现连接/断开蓝牙设备连接，可能会出现兼容性问题，如果出现问题可打开此开关通过跳转到系统蓝牙设置页进行管理。</span>
+            </span>
+          </span>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-use-system-bt">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="setting-row">
+        <span class="setting-label">查看/修改 2.4G 设备列表</span>
+        <button class="add-device-btn" id="btn-add-24g">打开</button>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="setting-row">
+        <span class="setting-label">设备信息页设备列表</span>
+      </div>
+      <div class="device-groups" id="device-groups"></div>
     </div>
 
-    <div class="separator"></div>
-
-    <!-- Audio device visibility -->
-    <div class="setting-row">
-      <span class="setting-label">音量控制页设备列表</span>
+    <!-- Tab: Audio -->
+    <div class="tab-content" id="tab-audio">
+      <div class="setting-row">
+        <span class="setting-label">音量控制页设备列表</span>
+      </div>
+      <div class="audio-device-groups" id="audio-device-groups"></div>
     </div>
-    <div class="audio-device-groups" id="audio-device-groups"></div>
-
-    <div class="separator"></div>
-
-    <!-- Device groups -->
-    <div class="setting-row">
-      <span class="setting-label">设备信息页设备列表</span>
-    </div>
-    <div class="device-groups" id="device-groups"></div>
   </div>
 
   <script>

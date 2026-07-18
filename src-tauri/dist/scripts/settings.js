@@ -7,6 +7,16 @@ let expandedGroups = new Set();
 let deviceGroups = {};
 
 async function init() {
+  // Tab switching
+  document.querySelectorAll(".tab-item").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab-item").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+    });
+  });
+
   try {
     config = await invoke("get_config");
 
