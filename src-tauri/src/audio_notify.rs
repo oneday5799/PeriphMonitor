@@ -40,8 +40,12 @@ impl AudioNotifyCallback {
                 }
             }
 
-            // 检查是否有设备被移除
-            if last.len() != current.len() {
+            // 检查设备列表是否变化（新增或移除设备）
+            let last_ids: Vec<&str> = last.iter().map(|(id, _, _)| id.as_str()).collect();
+            let current_ids: Vec<&str> = current.iter().map(|(id, _, _)| id.as_str()).collect();
+            let devices_changed = last_ids != current_ids;
+
+            if devices_changed {
                 changed = true;
             }
 
@@ -56,6 +60,10 @@ impl AudioNotifyCallback {
                     .collect();
                 if !changes.is_empty() {
                     let _ = self.app_handle.emit("volume-changed", &changes);
+                }
+                // 设备列表变化时通知托盘菜单更新
+                if devices_changed {
+                    let _ = self.app_handle.emit("audio-devices-changed", ());
                 }
                 *last = current;
             }
