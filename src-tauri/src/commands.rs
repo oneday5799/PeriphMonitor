@@ -205,8 +205,10 @@ pub async fn toggle_session_mute(session_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn set_default_device(device_id: String) -> Result<(), String> {
-    crate::audio::set_default_device(&device_id).map_err(|e| e.to_string())
+pub fn set_default_device(app: tauri::AppHandle, device_id: String) -> Result<(), String> {
+    crate::audio::set_default_device(&device_id).map_err(|e| e.to_string())?;
+    let _ = app.emit("audio-devices-changed", ());
+    Ok(())
 }
 
 
