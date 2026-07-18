@@ -135,7 +135,10 @@ pub fn open_with_system(path: &str) -> Result<(), String> {
     let mut cmd = new_hidden_cmd("cmd");
     cmd.args(["/c", "start", "", path])
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            crate::process::append_log(&format!("[process] open_with_system failed: {} -> {}", path, e));
+            e.to_string()
+        })?;
     Ok(())
 }
 
@@ -192,7 +195,7 @@ pub fn run_powershell_script(script: &str, args: &[&str]) -> Result<String, Stri
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
     let arg_str = args.iter().map(|a| format!("\"{}\"", a)).collect::<Vec<_>>().join(" ");
-    crate::process::append_log(&format!("[bt] SPAWN powershell -File {} {}", script, arg_str));
+    crate::process::append_log_detailed(&format!("[bt] SPAWN powershell -File {} {}", script, arg_str));
 
     let mut child = cmd.spawn().map_err(|e| {
         let msg = format!("[bt] SPAWN_FAILED: {}", e);
@@ -201,7 +204,7 @@ pub fn run_powershell_script(script: &str, args: &[&str]) -> Result<String, Stri
     })?;
 
     let child_id = child.id();
-    crate::process::append_log(&format!("[bt] CHILD_PID={}", child_id));
+    crate::process::append_log_detailed(&format!("[bt] CHILD_PID={}", child_id));
 
     // 超时 60 秒
     let timeout = std::time::Duration::from_secs(60);
@@ -218,7 +221,7 @@ pub fn run_powershell_script(script: &str, args: &[&str]) -> Result<String, Stri
                     "[bt] SCRIPT_DONE exit={:?}\n  stdout: {}\n  stderr: {}",
                     status, stdout, stderr
                 );
-                crate::process::append_log(&log_msg);
+                crate::process::append_log_detailed(&log_msg);
 
                 if !status.success() {
                     return Err(format!("Script failed (exit {}): {}", status.code().unwrap_or(-1), stderr));

@@ -23,10 +23,13 @@ fn main() {
     // Init COM with apartment-threaded mode (same as Tauri) BEFORE Tauri starts.
     // This lets wmi use COMLibrary::assume_initialized() instead of re-initializing.
     unsafe {
-        windows_sys::Win32::System::Com::CoInitializeEx(
+        let hr = windows_sys::Win32::System::Com::CoInitializeEx(
             std::ptr::null(),
             0x2, // COINIT_APARTMENTTHREADED
         );
+        if hr < 0 {
+            eprintln!("CoInitializeEx failed: 0x{:08X}", hr);
+        }
     }
 
     config::init_config();
@@ -37,6 +40,9 @@ fn main() {
     process::clean_old_logs();
 
     let is_autostart = std::env::args().any(|a| a == "--autostart");
+    if is_autostart {
+        process::append_log("[main] autostart mode");
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
@@ -79,12 +85,15 @@ fn main() {
             commands::open_log_dir,
         ])
         .setup(move |app| {
-            tray::setup_tray(app)?;
+            if let Err(e) = tray::setup_tray(app) {
+                process::append_log(&format!("[main] setup_tray failed: {}", e));
+            }
             // 初始化音频通知回调（替代轮询）
             crate::audio_notify::init_audio_notify(app.handle().clone());
             if !is_autostart {
                 popup::open_popup(app.handle(), "devices");
             }
+            process::append_log("[main] startup complete");
             Ok(())
         })
         .on_window_event(|window, event| {

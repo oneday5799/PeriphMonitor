@@ -38,6 +38,7 @@ pub fn open_settings(app: tauri::AppHandle) {
 
 #[tauri::command]
 pub fn exit_app(app: tauri::AppHandle) {
+    crate::process::append_log("[cmd] exit_app");
     app.exit(0);
 }
 
@@ -56,12 +57,14 @@ pub fn update_config(app: tauri::AppHandle, new_config: Config) {
 
 #[tauri::command]
 pub fn toggle_device_hidden(app: tauri::AppHandle, name: String) {
+    crate::process::append_log(&format!("[cmd] toggle_device_hidden: {}", name));
     config::with_config_mut(|c| toggle_vec_item(&mut c.hidden_devices, &name));
     let _ = app.emit("config-changed", ());
 }
 
 #[tauri::command]
 pub fn toggle_audio_device_hidden(app: tauri::AppHandle, name: String) {
+    crate::process::append_log(&format!("[cmd] toggle_audio_device_hidden: {}", name));
     config::with_config_mut(|c| toggle_vec_item(&mut c.hidden_audio_devices, &name));
     let _ = app.emit("config-changed", ());
     let _ = app.emit("audio-devices-changed", ());
@@ -86,6 +89,7 @@ pub fn close_window(app: tauri::AppHandle, name: String) {
 
 #[tauri::command]
 pub fn rename_device(app: tauri::AppHandle, original: String, new_name: String) {
+    crate::process::append_log(&format!("[cmd] rename_device: '{}' -> '{}'", original, new_name));
     config::with_config_mut(|c| {
         if new_name.is_empty() {
             c.device_names.remove(&original);
@@ -116,6 +120,7 @@ pub fn toggle_group_hidden(app: tauri::AppHandle, group: String) {
 
 #[tauri::command(async)]
 pub async fn disconnect_bluetooth_device(name: String) -> Result<String, String> {
+    crate::process::append_log(&format!("[cmd] disconnect_bluetooth_device: {}", name));
     run_blocking(move || crate::bluetooth::bt_action(&name, "disconnect"))
         .await?
         .map_err(|e| e.to_string())
@@ -123,6 +128,7 @@ pub async fn disconnect_bluetooth_device(name: String) -> Result<String, String>
 
 #[tauri::command(async)]
 pub async fn connect_bluetooth_device(name: String) -> Result<String, String> {
+    crate::process::append_log(&format!("[cmd] connect_bluetooth_device: {}", name));
     run_blocking(move || crate::bluetooth::bt_action(&name, "connect"))
         .await?
         .map_err(|e| e.to_string())
@@ -209,6 +215,7 @@ pub async fn toggle_session_mute(session_id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn set_default_device(app: tauri::AppHandle, device_id: String) -> Result<(), String> {
+    crate::process::append_log(&format!("[cmd] set_default_device: {}", device_id));
     crate::audio::set_default_device(&device_id).map_err(|e| e.to_string())?;
     let _ = app.emit("audio-devices-changed", ());
     Ok(())

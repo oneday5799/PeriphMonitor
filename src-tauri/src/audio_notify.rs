@@ -63,6 +63,7 @@ impl AudioNotifyCallback {
                 }
                 // 设备列表变化时通知托盘菜单更新
                 if devices_changed {
+                    crate::process::append_log(&format!("[audio_notify] device list changed: {} -> {} devices", last.len(), current.len()));
                     let _ = self.app_handle.emit("audio-devices-changed", ());
                 }
                 *last = current;
@@ -87,7 +88,12 @@ pub fn init_audio_notify(app_handle: tauri::AppHandle) {
     // 启动监听线程（低频率检查）
     let callback_clone = callback.clone();
     std::thread::spawn(move || {
-        unsafe { let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok(); }
+        unsafe {
+            let hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            if hr.is_err() {
+                crate::process::append_log("[audio_notify] CoInitializeEx failed in listener thread");
+            }
+        }
         loop {
             std::thread::sleep(Duration::from_millis(500));
             callback_clone.check_and_emit();

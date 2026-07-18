@@ -68,8 +68,17 @@ fn config_path() -> std::path::PathBuf {
 fn load_config() -> Config {
     let path = config_path();
     match std::fs::read_to_string(&path) {
-        Ok(content) => toml::from_str(&content).unwrap_or_default(),
-        Err(_) => Config::default(),
+        Ok(content) => match toml::from_str(&content) {
+            Ok(config) => config,
+            Err(e) => {
+                crate::process::append_log(&format!("[config] parse error: {}", e));
+                Config::default()
+            }
+        },
+        Err(e) => {
+            crate::process::append_log_detailed(&format!("[config] load failed (using defaults): {}", e));
+            Config::default()
+        }
     }
 }
 
@@ -77,8 +86,10 @@ fn save_config(config: &Config) {
     let path = config_path();
     if let Ok(content) = toml::to_string_pretty(config) {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::File::create(&path) {
-            let _ = f.write_all(content.as_bytes());
+        if let Err(e) = std::fs::File::create(&path)
+            .and_then(|mut f| f.write_all(content.as_bytes()))
+        {
+            crate::process::append_log(&format!("[config] save failed: {}", e));
         }
     }
 }

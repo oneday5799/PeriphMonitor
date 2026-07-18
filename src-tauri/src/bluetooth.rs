@@ -16,17 +16,15 @@ pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
         .ok_or_else(|| {
             let msg = format!("[bt] Device '{}' not found in device_id map", name);
             crate::process::append_log(&msg);
-            eprintln!("{}", msg);
             format!("Device '{}' not found", name)
         })?;
 
     let mac = device_id.rsplit('-').next().unwrap_or("").to_string();
     let header = format!("[bt] {} device='{}' mac='{}' device_id='{}'", action.to_uppercase(), name, mac, device_id);
-    eprintln!("{}", header);
     crate::process::append_log(&header);
 
     let script_path = find_bt_script()?;
-    crate::process::append_log(&format!("[bt] script: {}", script_path));
+    crate::process::append_log_detailed(&format!("[bt] script: {}", script_path));
 
     // 使用设备 MAC 作为文件名后缀，避免并发时输出文件冲突
     let out_file = std::env::temp_dir().join(format!("bt_action_out_{}.txt", mac.replace(':', "")));
@@ -50,13 +48,15 @@ pub fn bt_action(name: &str, action: &str) -> Result<String, String> {
         format!("{}\n{}", result, script_output.trim())
     };
 
-    crate::process::append_log(&format!("[bt] result: {}", combined));
+    crate::process::append_log_detailed(&format!("[bt] result: {}", combined));
 
     // 检测设备未找到或蓝牙适配器异常
     if combined.contains("NOT_FOUND") {
+        crate::process::append_log("[bt] 设备未找到 (NOT_FOUND)");
         return Err("设备未找到".to_string());
     }
     if combined.contains("NO_RADIO") {
+        crate::process::append_log("[bt] 未检测到蓝牙适配器 (NO_RADIO)");
         return Err("未检测到蓝牙适配器".to_string());
     }
 
@@ -73,7 +73,10 @@ fn find_bt_script() -> Result<String, String> {
     candidates.iter()
         .find(|p| p.exists())
         .map(|p| p.to_string_lossy().to_string())
-        .ok_or_else(|| "bt_action.ps1 not found".to_string())
+        .ok_or_else(|| {
+            crate::process::append_log("[bt] bt_action.ps1 not found");
+            "bt_action.ps1 not found".to_string()
+        })
 }
 
 /// 蓝牙设备信息: (名称, 已连接, 设备ID)
@@ -122,6 +125,7 @@ pub fn find_paired_bluetooth_devices() -> Result<Vec<(String, bool, Option<u8>, 
         }
     }
 
+    crate::process::append_log_detailed(&format!("[bt] find_paired_bluetooth_devices: found {} devices", result.len()));
     Ok(result)
 }
 

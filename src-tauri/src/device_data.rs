@@ -39,12 +39,19 @@ fn load_data_from_file() -> HashMap<String, HashMap<String, DeviceInfo>> {
                         }
                         result.insert(vid, pids_map);
                     }
+                    crate::process::append_log_detailed(&format!("[device_data] loaded {} VIDs", result.len()));
                     result
                 }
-                Err(_) => HashMap::new(),
+                Err(e) => {
+                    crate::process::append_log(&format!("[device_data] JSON parse error: {}", e));
+                    HashMap::new()
+                }
             }
         }
-        Err(_) => HashMap::new(),
+        Err(e) => {
+            crate::process::append_log_detailed(&format!("[device_data] file not found: {}", e));
+            HashMap::new()
+        }
     }
 }
 

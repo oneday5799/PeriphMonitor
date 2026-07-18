@@ -140,7 +140,7 @@ fn create(app: &tauri::AppHandle, target_x: f64, target_y: f64, tab: &str) {
     } else {
         "popup.html".to_string()
     };
-    if let Ok(win) = tauri::WebviewWindowBuilder::new(
+    match tauri::WebviewWindowBuilder::new(
         app, "popup", tauri::WebviewUrl::App(url.into()),
     )
     .title("外设信息")
@@ -151,14 +151,19 @@ fn create(app: &tauri::AppHandle, target_x: f64, target_y: f64, tab: &str) {
     .always_on_top(true)
     .position(target_x, target_y)
     .build() {
-        #[cfg(target_os = "windows")]
-        if let Ok(hwnd) = win.hwnd() {
-            windows::set_rounded_corners(hwnd.0 as isize);
+        Ok(win) => {
+            #[cfg(target_os = "windows")]
+            if let Ok(hwnd) = win.hwnd() {
+                windows::set_rounded_corners(hwnd.0 as isize);
+            }
+            let _ = win.show();
+            let _ = win.set_focus();
+            if let Some(pos) = POPUP_POS.get() {
+                *pos.lock().unwrap() = (target_x, target_y);
+            }
         }
-        let _ = win.show();
-        let _ = win.set_focus();
-        if let Some(pos) = POPUP_POS.get() {
-            *pos.lock().unwrap() = (target_x, target_y);
+        Err(e) => {
+            crate::process::append_log(&format!("[popup] create window failed: {}", e));
         }
     }
 }

@@ -145,7 +145,10 @@ pub fn query_devices() -> Vec<Device> {
     let com = unsafe { wmi::COMLibrary::assume_initialized() };
     let con = match WMIConnection::new(com) {
         Ok(c) => c,
-        Err(_) => return all,
+        Err(_) => {
+            crate::process::append_log("[wmi] WMIConnection::new failed");
+            return all;
+        }
     };
 
     let mut bt_names = HashSet::new();
@@ -168,6 +171,7 @@ pub fn query_devices() -> Vec<Device> {
         }
     }
 
+    crate::process::append_log_detailed(&format!("[wmi] query_devices: {} devices found", all.len()));
     all
 }
 
@@ -183,7 +187,10 @@ fn query_pnp_devices(
         "SELECT Name, Status, PNPDeviceID, Caption, PNPClass, ConfigManagerErrorCode FROM Win32_PnPEntity",
     ) {
         Ok(r) => r,
-        Err(_) => return,
+        Err(e) => {
+            crate::process::append_log(&format!("[wmi] PnP query failed: {}", e));
+            return;
+        }
     };
 
     for row in rows {

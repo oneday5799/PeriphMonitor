@@ -21,6 +21,7 @@ static VOLUME_STATE: std::sync::LazyLock<Arc<Mutex<Vec<VolumeState>>>> = std::sy
 struct VolumeState { device_id: String, volume: f32, is_muted: bool }
 
 pub fn set_default_device(device_id: &str) -> Result<()> {
+    crate::process::append_log_detailed(&format!("[audio] set_default_device: {}", device_id));
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
         let wide: Vec<u16> = device_id.encode_utf16().chain(std::iter::once(0)).collect();
