@@ -17,9 +17,52 @@ mod tray;
 mod windows;
 mod wmi_query;
 
+use std::panic;
+
 use tauri::Manager;
 
+/// 安装 panic hook：捕获 panic 后弹 MessageBox 再退出（避免 release 模式静默闪退）
+fn install_panic_hook() {
+    let default_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        let payload = info.payload();
+        let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = payload.downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic".to_string()
+        };
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "unknown location".to_string());
+        let full = format!("{}\n\nLocation: {}", msg, location);
+        show_error_box(&full);
+        default_hook(info);
+    }));
+}
+
+fn show_error_box(msg: &str) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONERROR};
+    let title = crate::process::to_wide("外设监控 - 启动失败");
+    let message = crate::process::to_wide(msg);
+    unsafe {
+        MessageBoxW(
+            core::ptr::null_mut(),
+            message.as_ptr(),
+            title.as_ptr(),
+            MB_OK | MB_ICONERROR,
+        );
+    }
+}
+
 fn main() {
+    // 先初始化配置（panic hook 和日志都依赖配置）
+    config::init_config();
+
+    install_panic_hook();
+
     // Init COM with apartment-threaded mode (same as Tauri) BEFORE Tauri starts.
     // This lets wmi use COMLibrary::assume_initialized() instead of re-initializing.
     unsafe {
@@ -32,7 +75,6 @@ fn main() {
         }
     }
 
-    config::init_config();
     device_data::init_device_data();
     tray::init_auto_start();
 
@@ -121,7 +163,10 @@ fn main() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
+        .unwrap_or_else(|e| {
+            show_error_box(&format!("应用初始化失败：\n{}", e));
+            std::process::exit(1);
+        })
         .run(|_app_handle, event| {
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 api.prevent_exit();

@@ -95,8 +95,9 @@ fn save_config(config: &Config) {
 }
 
 pub fn init_config() {
+    CONFIG.set(Mutex::new(Config::default())).ok();
     let config = load_config();
-    CONFIG.set(Mutex::new(config)).ok();
+    *CONFIG.get().unwrap().lock().unwrap_or_else(|e| e.into_inner()) = config;
 }
 
 pub fn with_config<F, R>(f: F) -> R
