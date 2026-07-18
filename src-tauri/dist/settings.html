@@ -68,7 +68,40 @@
 
     <div class="separator"></div>
 
-    <!-- Open 2.4G device list -->
+    <!-- Logging settings -->
+    <div class="setting-row">
+      <span class="setting-label">运行日志</span>
+      <label class="toggle">
+        <input type="checkbox" id="toggle-log">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="log-settings" id="log-settings">
+      <div class="setting-row">
+        <span class="setting-label">日志级别</span>
+        <select class="setting-select" id="log-level">
+          <option value="standard">标准</option>
+          <option value="detailed">详细</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">保留时长</span>
+        <select class="setting-select" id="log-retention">
+          <option value="once">一次</option>
+          <option value="one_day">一天</option>
+          <option value="three_days">三天</option>
+          <option value="one_week">一周</option>
+          <option value="one_month">一月</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">查看日志</span>
+        <button class="add-device-btn" id="btn-log-dir">打开目录</button>
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
     <div class="setting-row">
       <span class="setting-label">查看/修改 2.4G 设备列表</span>
       <button class="add-device-btn" id="btn-add-24g">打开</button>

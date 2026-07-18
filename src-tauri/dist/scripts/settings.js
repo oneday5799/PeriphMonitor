@@ -69,6 +69,36 @@ async function init() {
       await invoke("update_config", { newConfig: config });
     });
 
+    // Logging settings
+    const logToggle = document.getElementById("toggle-log");
+    logToggle.checked = config.log_enabled;
+    logToggle.addEventListener("change", async () => {
+      config.log_enabled = logToggle.checked;
+      await invoke("update_config", { newConfig: config });
+    });
+
+    const logLevelSelect = document.getElementById("log-level");
+    logLevelSelect.value = config.log_level || "standard";
+    logLevelSelect.addEventListener("change", async () => {
+      config.log_level = logLevelSelect.value;
+      await invoke("update_config", { newConfig: config });
+    });
+
+    const logRetentionSelect = document.getElementById("log-retention");
+    logRetentionSelect.value = config.log_retention || "one_day";
+    logRetentionSelect.addEventListener("change", async () => {
+      config.log_retention = logRetentionSelect.value;
+      await invoke("update_config", { newConfig: config });
+    });
+
+    document.getElementById("btn-log-dir").addEventListener("click", async () => {
+      try {
+        await invoke("open_log_dir");
+      } catch (e) {
+        console.error("Failed to open log dir:", e);
+      }
+    });
+
     loadDevicesAsync();
     loadAudioDevicesAsync();
 

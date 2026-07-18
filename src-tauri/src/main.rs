@@ -33,9 +33,8 @@ fn main() {
     device_data::init_device_data();
     tray::init_auto_start();
 
-    // 启动时清空日志（基于 exe 所在目录）
-    let log_path = process::exe_dir().join("debug.log");
-    let _ = std::fs::remove_file(&log_path);
+    // 根据日志保留策略清理旧日志
+    process::clean_old_logs();
 
     let is_autostart = std::env::args().any(|a| a == "--autostart");
 
@@ -77,6 +76,7 @@ fn main() {
             commands::set_session_volume,
             commands::toggle_session_mute,
             commands::set_default_device,
+            commands::open_log_dir,
         ])
         .setup(move |app| {
             tray::setup_tray(app)?;

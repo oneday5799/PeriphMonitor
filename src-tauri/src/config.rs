@@ -18,7 +18,17 @@ pub struct Config {
     pub tray_devices: Vec<String>,
     #[serde(default)]
     pub hidden_audio_devices: Vec<String>,
+    #[serde(default = "default_false")]
+    pub log_enabled: bool,
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+    #[serde(default = "default_log_retention")]
+    pub log_retention: String,
 }
+
+fn default_false() -> bool { false }
+fn default_log_level() -> String { "standard".to_string() }
+fn default_log_retention() -> String { "one_day".to_string() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -35,6 +45,9 @@ impl Default for Config {
             use_system_bt: false,
             tray_devices: vec![],
             hidden_audio_devices: vec![],
+            log_enabled: false,
+            log_level: "standard".to_string(),
+            log_retention: "one_day".to_string(),
         }
     }
 }

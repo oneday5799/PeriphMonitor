@@ -25,17 +25,96 @@ pub fn new_hidden_cmd(program: &str) -> Command {
     Command::new(program)
 }
 
-/// 追加日志到 debug.log 文件（基于 exe 所在目录）
+/// 获取日志文件路径
+fn log_path() -> std::path::PathBuf {
+    let retention = crate::config::with_config(|c| c.log_retention.clone());
+    if retention == "once" {
+        exe_dir().join(format!("debug_{}.log", std::process::id()))
+    } else {
+        exe_dir().join("debug.log")
+    }
+}
+
+/// 追加日志到文件（标准级别）
 pub fn append_log(msg: &str) {
+    let (enabled, level) = crate::config::with_config(|c| (c.log_enabled, c.log_level.clone()));
+    if !enabled || level != "standard" {
+        return;
+    }
+    write_log(msg);
+}
+
+/// 追加日志到文件（详细级别）
+pub fn append_log_detailed(msg: &str) {
+    let (enabled, level) = crate::config::with_config(|c| (c.log_enabled, c.log_level.clone()));
+    if !enabled || level != "detailed" {
+        return;
+    }
+    write_log(msg);
+}
+
+fn write_log(msg: &str) {
     use std::io::Write;
     let timestamp = chrono_str();
     let line = format!("[{}]{}\n", timestamp, msg);
-    let log_path = exe_dir().join("debug.log");
+    let path = log_path();
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true).append(true)
-        .open(&log_path)
+        .open(&path)
     {
         let _ = file.write_all(line.as_bytes());
+    }
+}
+
+/// 清理旧日志文件（根据保留时长设置）
+pub fn clean_old_logs() {
+    use std::time::{SystemTime, Duration};
+
+    let (enabled, retention) = crate::config::with_config(|c| (c.log_enabled, c.log_retention.clone()));
+    if !enabled {
+        return;
+    }
+
+    let dir = exe_dir();
+    let now = SystemTime::now();
+
+    let max_age = match retention.as_str() {
+        "once" => {
+            // 一次模式：删除所有 debug*.log
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name();
+                    let name_str = name.to_string_lossy();
+                    if name_str.starts_with("debug") && name_str.ends_with(".log") {
+                        let _ = std::fs::remove_file(entry.path());
+                    }
+                }
+            }
+            return;
+        }
+        "three_days" => Duration::from_secs(3 * 86400),
+        "one_week" => Duration::from_secs(7 * 86400),
+        "one_month" => Duration::from_secs(30 * 86400),
+        _ => Duration::from_secs(86400), // one_day
+    };
+
+    // 非 once 模式：清理超过保留时长的 debug*.log 文件
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with("debug") && name_str.ends_with(".log") {
+                if let Ok(meta) = entry.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        if let Ok(elapsed) = now.duration_since(modified) {
+                            if elapsed > max_age {
+                                let _ = std::fs::remove_file(entry.path());
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

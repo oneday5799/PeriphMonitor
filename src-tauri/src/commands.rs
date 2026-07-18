@@ -214,4 +214,11 @@ pub fn set_default_device(app: tauri::AppHandle, device_id: String) -> Result<()
     Ok(())
 }
 
+#[tauri::command]
+pub fn open_log_dir() -> Result<(), String> {
+    let dir = crate::process::exe_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    process::open_with_system(&dir.to_string_lossy())
+}
+
 
