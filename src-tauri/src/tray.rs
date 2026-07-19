@@ -116,7 +116,10 @@ fn build_full_menu(
     let auto_i = MenuItem::with_id(app, "auto_start", auto_text, true, None::<&str>)?;
     let exit_i = MenuItem::with_id(app, "exit", "退出", true, None::<&str>)?;
     let win_sound_menu = build_windows_sound_settings_menu(app)?;
-    let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(Some(auto_i.clone())));
+    let _ = AUTO_MENU_ITEM.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = AUTO_MENU_ITEM.get().unwrap().lock() {
+        *guard = Some(auto_i.clone());
+    }
 
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
