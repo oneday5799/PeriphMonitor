@@ -123,6 +123,9 @@ html, body {
   margin-left: 6px;
   cursor: pointer;
   vertical-align: middle;
+  flex-shrink: 0;
+  position: relative;
+  top: -1px;
 }
 
 .help-link:hover {
