@@ -180,7 +180,9 @@ PeriphMonitor/
 
 ### 添加自定义 2.4G 设备
 
-可在设置页中点击"打开"按钮，直接编辑 `wireless_24g_devices.json` 文件添加自己的 2.4G 设备。VID 和 PID 信息可通过 [USB 设备查看器](https://www.codertools.net/tools/usb-device-viewer.php?lang=zh) 在线获取。
+可在设置页中点击"打开"按钮，编辑 `wireless_24g_devices_user.json` 文件添加自定义设备。应用更新时不会覆盖此文件。
+
+设备加载逻辑：先加载官方预设（`data/wireless_24g_devices.json`），再加载用户自定义文件并合并，同 VID/PID 时用户条目优先。VID 和 PID 信息可通过 [USB 设备查看器](https://www.codertools.net/tools/usb-device-viewer.php?lang=zh) 在线获取。
 
 JSON 格式如下：
 
