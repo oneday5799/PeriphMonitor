@@ -48,7 +48,8 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 
 - 列出所有音频输出设备，支持切换默认设备、调节音量、静音
 - 按应用查看/调节音量会话，音量滑块实时同步系统变化
-- 应用图标显示（从进程可执行文件提取，base64 PNG）
+- 音频事件完全事件驱动：IAudioEndpointVolumeCallback 实时回调音量变化，IMMNotificationClient 实时检测设备插拔
+- 应用图标显示（从进程可执行文件提取，base64 PNG，按 PID 缓存）
 - 音频设备右键菜单支持重命名和隐藏
 
 ### 系统托盘
@@ -95,6 +96,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 | 前端 | 纯 HTML/CSS/JS |
 | 设备检测 | WMI + WinRT Bluetooth + windows_pnp |
 | 音量控制 | Windows Core Audio API (IAudioEndpointVolume / IAudioSessionManager2) |
+| 音频事件 | IAudioEndpointVolumeCallback + IMMNotificationClient（事件驱动） |
 | 2.4G 识别 | USB VID/PID 匹配（wireless_24g_devices.json） |
 | BLE 电量 | GATT Battery Service (0x180F/0x2A19) |
 | BTC 电量 | windows_pnp (DEVPKEY_BLUETOOTH_BATTERY) |
@@ -121,10 +123,11 @@ PeriphMonitor/
 │   │   ├── classify.rs               # 设备分类逻辑（PNPClass/名称匹配）
 │   │   ├── device.rs                 # 数据模型（Device, DevType）与设备 ID 存储
 │   │   ├── device_data.rs            # 2.4G 设备数据加载与查询
-│   │   ├── wmi_query.rs              # WMI 查询编排，设备去重与过滤
+│   │   ├── dedup.rs                 # 设备去重逻辑（核心名称提取、去重插入）
+│   │   ├── wmi_query.rs              # WMI 查询编排与过滤
 │   │   ├── bluetooth.rs              # WinRT 蓝牙 API（配对设备、GATT/PnP 电量）
 │   │   ├── audio.rs                  # 音量控制（Core Audio API）
-│   │   ├── audio_notify.rs           # 音量变化后台轮询与事件推送
+│   │   ├── audio_notify.rs           # 音频事件监控（IAudioEndpointVolumeCallback + IMMNotificationClient）
 │   │   ├── app_icon.rs               # 进程图标提取（64×64，base64 PNG）
 │   │   ├── commands.rs               # Tauri 命令处理器
 │   │   ├── popup.rs                  # 弹出窗口生命周期（toggle/open/close）与动画
@@ -136,7 +139,7 @@ PeriphMonitor/
 │   │   ├── settings.html             # 设置页
 │   │   ├── about.html                # 关于页
 │   │   ├── scripts/
-│   │   │   ├── common.js             # 共享常量与工具函数（CATEGORIES、getInvoke、getDisplayName）
+│   │   │   ├── common.js             # 共享常量与工具函数（CATEGORIES、getInvoke、右键菜单、重命名对话框）
 │   │   │   ├── dialog.js             # 通用对话框组件（createDialog、closeDialog）
 │   │   │   ├── popup.js              # 主窗口逻辑（设备列表、蓝牙操作、右键菜单）
 │   │   │   ├── audio.js              # 音量控制逻辑（设备/会话音量、滑块、右键菜单）
@@ -157,7 +160,7 @@ PeriphMonitor/
 
 ### 代码组织说明
 
-- **后端**：`wmi_query.rs` 集成设备去重逻辑，`process.rs` 统一管理日志和 ShellExecuteW 调用，`audio.rs` 提取 `with_enumerator()` 消除 COM 初始化样板代码，`popup.rs` 提供 `compute_position()` 计算弹窗位置
+- **后端**：`dedup.rs` 封装设备去重逻辑，`wmi_query.rs` 负责 WMI 查询编排与过滤，`process.rs` 统一管理日志和 ShellExecuteW 调用，`audio.rs` 提取 `with_enumerator()` 消除 COM 初始化样板代码，`popup.rs` 提供 `compute_position()` 计算弹窗位置
 - **前端**：按功能拆分 — `popup.js` 负责设备列表，`audio.js` 负责音量控制；CSS 同理拆分为 `popup.css` 和 `audio.css`；设置页按三个标签页组织（通用/设备信息/音量控制）
 - **配置**：TOML 格式，包含 hidden_devices、hidden_audio_devices、device_names、device_groups、log_enabled、log_level、log_retention 等字段
 - **日志**：标准级别记录关键运行事件，详细级别记录诊断信息；支持按保留时长自动清理

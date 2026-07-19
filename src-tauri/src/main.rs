@@ -8,6 +8,7 @@ mod bluetooth;
 mod classify;
 mod commands;
 mod config;
+mod dedup;
 mod device;
 mod device_data;
 mod popup;

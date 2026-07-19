@@ -299,9 +299,10 @@ function renderDevices() {
 }
 
 let activeMenu = null;
+registerContextMenu({ get menu() { return activeMenu; }, set menu(v) { activeMenu = v; } });
 
 function showContextMenu(x, y, dev) {
-  hideContextMenu();
+  hideAllContextMenus();
   const invoke = getInvoke();
   if (!invoke) return;
 
@@ -312,8 +313,14 @@ function showContextMenu(x, y, dev) {
   renameItem.className = "context-menu-item";
   renameItem.textContent = "重命名";
   renameItem.addEventListener("click", () => {
-    hideContextMenu();
-    showRenameDialog(dev);
+    hideAllContextMenus();
+    showRenameDialog({
+      deviceName: dev.name,
+      displayName: getDisplayName(dev, deviceNames),
+      nameSource: deviceNames[dev.name],
+      onUpdate: (names) => { deviceNames = names; },
+      onRender: renderDevices,
+    });
   });
   menu.appendChild(renameItem);
 
@@ -321,7 +328,7 @@ function showContextMenu(x, y, dev) {
   groupItem.className = "context-menu-item";
   groupItem.textContent = "更改分组";
   groupItem.addEventListener("click", () => {
-    hideContextMenu();
+    hideAllContextMenus();
     showGroupDialog(dev);
   });
   menu.appendChild(groupItem);
@@ -334,7 +341,7 @@ function showContextMenu(x, y, dev) {
     const config = await invoke("get_config");
     hiddenDevices = config.hidden_devices || [];
     renderDevices();
-    hideContextMenu();
+    hideAllContextMenus();
   });
   menu.appendChild(hideItem);
 
@@ -353,89 +360,13 @@ function showContextMenu(x, y, dev) {
     } catch (e) {
       showToast(e);
     }
-    hideContextMenu();
+    hideAllContextMenus();
   });
   menu.appendChild(trayItem);
 
   document.body.appendChild(menu);
-
-  const menuW = menu.offsetWidth;
-  const menuH = menu.offsetHeight;
-  let posX = x;
-  let posY = y;
-
-  if (x + menuW > window.innerWidth) posX = x - menuW;
-  if (y + menuH > window.innerHeight) posY = y - menuH;
-  if (posX < 0) posX = 0;
-  if (posY < 0) posY = 0;
-
-  menu.style.left = posX + "px";
-  menu.style.top = posY + "px";
+  clampMenuPosition(menu, x, y);
   activeMenu = menu;
-}
-
-function showRenameDialog(dev) {
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "dialog-input";
-  input.value = getDisplayName(dev, deviceNames);
-  input.placeholder = "输入新名称";
-
-  const isRenamed = deviceNames[dev.name] !== undefined;
-
-  const buttons = [];
-
-  if (isRenamed) {
-    buttons.push({
-      text: "恢复默认",
-      className: "restore",
-      onClick: async () => {
-        const invoke = getInvoke();
-        if (invoke) {
-          await invoke("rename_device", { original: dev.name, newName: "" });
-          const config = await invoke("get_config");
-          deviceNames = config.device_names || {};
-          renderDevices();
-        }
-        closeDialog(overlay);
-      },
-    });
-  }
-
-  buttons.push({
-    text: "取消",
-    className: "cancel",
-    onClick: () => closeDialog(overlay),
-  });
-
-  buttons.push({
-    text: "确定",
-    className: "confirm",
-    onClick: async () => {
-      const newName = input.value.trim();
-      const invoke = getInvoke();
-      if (invoke) {
-        await invoke("rename_device", { original: dev.name, newName });
-        const config = await invoke("get_config");
-        deviceNames = config.device_names || {};
-        renderDevices();
-      }
-      closeDialog(overlay);
-    },
-  });
-
-  const overlay = createDialog({
-    title: "重命名设备",
-    content: [input],
-    buttons,
-  });
-
-  input.focus();
-  input.select();
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") overlay.querySelector(".dialog-btn.confirm")?.click();
-  });
 }
 
 function showGroupDialog(dev) {
@@ -512,15 +443,6 @@ function showGroupDialog(dev) {
     buttons,
   });
 }
-
-function hideContextMenu() {
-  if (activeMenu) {
-    activeMenu.remove();
-    activeMenu = null;
-  }
-}
-
-document.addEventListener("click", hideContextMenu);
 
 document.getElementById("btn-refresh").addEventListener("click", async () => {
   const activeTab = document.querySelector('.tab-title.active');

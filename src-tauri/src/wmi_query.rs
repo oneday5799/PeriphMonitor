@@ -9,6 +9,7 @@ use crate::config;
 use crate::classify::{classify_device, classify_bluetooth, is_wireless_24g_by_vid_pid, is_bt_service, is_generic_hid, is_system_device};
 use crate::device_data;
 use crate::bluetooth::find_paired_bluetooth_devices;
+use crate::dedup::{core_name, try_insert};
 
 static CACHED_REGEX: OnceLock<Mutex<Option<(String, Regex)>>> = OnceLock::new();
 
@@ -23,134 +24,6 @@ fn get_cached_regex(pattern: &str) -> Option<Regex> {
     let re = Regex::new(&format!("(?i)({})", pattern)).ok()?;
     *guard = Some((pattern.to_string(), re.clone()));
     Some(re)
-}
-
-fn core_name(n: &str) -> String {
-    let inner = if let Some(i) = n.find(" (") {
-        if let Some(j) = n.rfind(')') {
-            if j > i + 2 {
-                n[i + 2..j].to_string()
-            } else {
-                n.to_string()
-            }
-        } else {
-            n.to_string()
-        }
-    } else {
-        n.to_string()
-    };
-    for suffix in &[
-        " Hands-Free AG",
-        " Hands-Free HF",
-        " Hands-Free",
-        " Handsfree",
-        " A2DP SNK",
-        " A2DP SRC",
-        " Stereo",
-        " LE",
-        " Low Energy",
-        " Audio",
-        " HFP",
-        " AG",
-        " SNK",
-        " SRC",
-        " Avrcp 传输",
-        " 音频网关服务",
-    ] {
-        if let Some(pos) = inner.strip_suffix(suffix) {
-            return pos.to_string();
-        }
-    }
-    inner
-}
-
-fn try_insert(
-    name: &str,
-    display_name: Option<&str>,
-    dt: DevType,
-    status: &str,
-    battery: Option<i32>,
-    device_id: Option<String>,
-    is_bluetooth: bool,
-    is_wireless_24g: bool,
-    dedup: bool,
-    seen: &mut HashSet<String>,
-    devices: &mut Vec<Device>,
-    cn_index: &mut HashMap<String, Vec<usize>>,
-) {
-    let effective_name = display_name.unwrap_or(name);
-    let cn = if display_name.is_some() {
-        effective_name.to_string()
-    } else {
-        core_name(name)
-    };
-    let has_conn_type = is_bluetooth || is_wireless_24g;
-
-    if dedup && !has_conn_type {
-        if let Some(indices) = cn_index.get(&cn) {
-            if indices.iter().any(|&i| {
-                let d = &devices[i];
-                (d.name == cn) && (d.is_bluetooth || d.is_wireless_24g)
-            }) {
-                return;
-            }
-        }
-    }
-
-    if dedup && has_conn_type {
-        if let Some(indices) = cn_index.get(&cn) {
-            if let Some(&pos) = indices.iter().find(|&&i| {
-                let d = &devices[i];
-                (d.name == cn) && !d.is_bluetooth && !d.is_wireless_24g
-            }) {
-                devices.remove(pos);
-                rebuild_cn_index(cn_index, devices);
-            }
-        }
-    }
-
-    let conn_tag = if is_bluetooth { "bt" } else if is_wireless_24g { "24g" } else { "usb" };
-    let dedup_key = format!("{}:{}", cn, conn_tag);
-    if dedup && !seen.insert(dedup_key) {
-        if let Some(indices) = cn_index.get(&cn) {
-            if let Some(&pos) = indices.iter().find(|&&i| {
-                let d = &devices[i];
-                let econn = if d.is_bluetooth { "bt" } else if d.is_wireless_24g { "24g" } else { "usb" };
-                (d.name == cn) && econn == conn_tag
-            }) {
-                let existing = &mut devices[pos];
-                if name.len() < existing.name.len() {
-                    existing.name = effective_name.to_string();
-                    existing.status = status.to_string();
-                    if existing.device_id.is_none() {
-                        existing.device_id = device_id;
-                    }
-                    existing.is_bluetooth = existing.is_bluetooth || is_bluetooth;
-                    existing.is_wireless_24g = existing.is_wireless_24g || is_wireless_24g;
-                }
-            }
-        }
-        return;
-    }
-    let idx = devices.len();
-    devices.push(Device {
-        name: effective_name.to_string(),
-        dt,
-        status: status.to_string(),
-        battery,
-        device_id,
-        is_bluetooth,
-        is_wireless_24g,
-    });
-    cn_index.entry(cn).or_default().push(idx);
-}
-
-fn rebuild_cn_index(cn_index: &mut HashMap<String, Vec<usize>>, devices: &[Device]) {
-    cn_index.clear();
-    for (i, d) in devices.iter().enumerate() {
-        let cn = core_name(&d.name);
-        cn_index.entry(cn).or_default().push(i);
-    }
 }
 
 /// 从 WMI 行中提取字符串字段

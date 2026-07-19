@@ -4,6 +4,7 @@ let selectedDeviceId = null;
 let hiddenAudioDevices = [];
 let audioDeviceNames = {};
 let activeAudioMenu = null;
+registerContextMenu({ get menu() { return activeAudioMenu; }, set menu(v) { activeAudioMenu = v; } });
 
 function updateSessionCard(session) {
   const cards = document.querySelectorAll('.audio-session-card');
@@ -164,17 +165,8 @@ function createSliderTooltip(slider) {
   return tooltip;
 }
 
-function hideAudioContextMenu() {
-  if (activeAudioMenu) {
-    activeAudioMenu.remove();
-    activeAudioMenu = null;
-  }
-}
-
-document.addEventListener("click", hideAudioContextMenu);
-
 function showAudioContextMenu(x, y, device) {
-  hideAudioContextMenu();
+  hideAllContextMenus();
   const invoke = getInvoke();
   if (!invoke) return;
 
@@ -185,8 +177,14 @@ function showAudioContextMenu(x, y, device) {
   renameItem.className = "context-menu-item";
   renameItem.textContent = "重命名";
   renameItem.addEventListener("click", () => {
-    hideAudioContextMenu();
-    showAudioRenameDialog(device);
+    hideAllContextMenus();
+    showRenameDialog({
+      deviceName: device.name,
+      displayName: audioDeviceNames[device.name] || device.name,
+      nameSource: audioDeviceNames[device.name],
+      onUpdate: (names) => { audioDeviceNames = names; },
+      onRender: renderAudioDevices,
+    });
   });
   menu.appendChild(renameItem);
 
@@ -198,89 +196,13 @@ function showAudioContextMenu(x, y, device) {
     const config = await invoke("get_config");
     hiddenAudioDevices = config.hidden_audio_devices || [];
     renderAudioDevices();
-    hideAudioContextMenu();
+    hideAllContextMenus();
   });
   menu.appendChild(hideItem);
 
   document.body.appendChild(menu);
-
-  const menuW = menu.offsetWidth;
-  const menuH = menu.offsetHeight;
-  let posX = x;
-  let posY = y;
-
-  if (x + menuW > window.innerWidth) posX = x - menuW;
-  if (y + menuH > window.innerHeight) posY = y - menuH;
-  if (posX < 0) posX = 0;
-  if (posY < 0) posY = 0;
-
-  menu.style.left = posX + "px";
-  menu.style.top = posY + "px";
+  clampMenuPosition(menu, x, y);
   activeAudioMenu = menu;
-}
-
-function showAudioRenameDialog(device) {
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "dialog-input";
-  input.value = audioDeviceNames[device.name] || device.name;
-  input.placeholder = "输入新名称";
-
-  const isRenamed = audioDeviceNames[device.name] !== undefined;
-
-  const buttons = [];
-
-  if (isRenamed) {
-    buttons.push({
-      text: "恢复默认",
-      className: "restore",
-      onClick: async () => {
-        const invoke = getInvoke();
-        if (invoke) {
-          await invoke("rename_device", { original: device.name, newName: "" });
-          const config = await invoke("get_config");
-          audioDeviceNames = config.device_names || {};
-          renderAudioDevices();
-        }
-        closeDialog(overlay);
-      },
-    });
-  }
-
-  buttons.push({
-    text: "取消",
-    className: "cancel",
-    onClick: () => closeDialog(overlay),
-  });
-
-  buttons.push({
-    text: "确定",
-    className: "confirm",
-    onClick: async () => {
-      const newName = input.value.trim();
-      const invoke = getInvoke();
-      if (invoke) {
-        await invoke("rename_device", { original: device.name, newName });
-        const config = await invoke("get_config");
-        audioDeviceNames = config.device_names || {};
-        renderAudioDevices();
-      }
-      closeDialog(overlay);
-    },
-  });
-
-  const overlay = createDialog({
-    title: "重命名设备",
-    content: [input],
-    buttons,
-  });
-
-  input.focus();
-  input.select();
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") overlay.querySelector(".dialog-btn.confirm")?.click();
-  });
 }
 
 async function loadAudioDevices() {
