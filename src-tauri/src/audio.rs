@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 use std::ptr;
-use std::sync::{Arc, Mutex};
 use windows::core::*;
 use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::Endpoints::*;
@@ -16,9 +15,6 @@ pub struct VolumeChangeEvent { pub device_id: String, pub volume: f32, pub is_mu
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioSession { pub id: String, pub name: String, pub icon: String, pub pid: u32, pub volume: f32, pub is_muted: bool, pub device_id: String, #[serde(default)] pub is_active: bool }
-
-static VOLUME_STATE: std::sync::LazyLock<Arc<Mutex<Vec<VolumeState>>>> = std::sync::LazyLock::new(|| Arc::new(Mutex::new(Vec::new())));
-struct VolumeState { device_id: String, volume: f32, is_muted: bool }
 
 /// 确保当前线程已初始化 COM（幂等调用）
 unsafe fn ensure_com_initialized() {
@@ -116,9 +112,6 @@ pub fn enumerate_output_devices() -> Result<Vec<AudioDevice>> {
                     }
                 }
             }
-            if let Ok(mut state) = VOLUME_STATE.lock() {
-                *state = devices.iter().map(|d| VolumeState { device_id: d.id.clone(), volume: d.volume, is_muted: d.is_muted }).collect();
-            }
             Ok(devices)
         })?
     }
@@ -154,11 +147,6 @@ pub fn set_device_volume(device_id: &str, volume: f32) -> Result<()> {
             Ok(())
         })??;
     }
-    if let Ok(mut state) = VOLUME_STATE.lock() {
-        if let Some(s) = state.iter_mut().find(|s| s.device_id == device_id) {
-            s.volume = volume;
-        }
-    }
     Ok(())
 }
 
@@ -173,11 +161,6 @@ pub fn toggle_device_mute(device_id: &str) -> Result<()> {
             endpoint.SetMute(new_muted, ptr::null())?;
             Ok(())
         })??;
-    }
-    if let Ok(mut state) = VOLUME_STATE.lock() {
-        if let Some(s) = state.iter_mut().find(|s| s.device_id == device_id) {
-            s.is_muted = new_muted;
-        }
     }
     Ok(())
 }

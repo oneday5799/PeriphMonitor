@@ -18,6 +18,7 @@ image = "0.25"
 base64 = "0.22"
 windows_pnp = { path = "../libs/windows_pnp" }
 windows_pnp_uuid = { path = "../libs/windows_pnp/libs/windows_pnp_uuid" }
+windows-core = "0.62"
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",

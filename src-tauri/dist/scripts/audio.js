@@ -407,6 +407,9 @@ function createAudioDeviceCard(device) {
     updateSliderGradient(e.target);
     throttledSetDeviceVolume(device.id, value);
   });
+  slider.addEventListener("change", () => {
+    setTimeout(() => slider.blur(), 100);
+  });
   updateSliderGradient(slider);
   controls.appendChild(slider);
 
@@ -577,6 +580,9 @@ function createAudioSessionCard(session) {
     if (sess) sess.volume = value;
     updateSliderGradient(e.target);
     throttledSetSessionVolume(card.dataset.sessionId, value);
+  });
+  slider.addEventListener("change", () => {
+    setTimeout(() => slider.blur(), 100);
   });
   updateSliderGradient(slider);
   controls.appendChild(slider);
