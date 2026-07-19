@@ -22,12 +22,6 @@ body {
   flex-shrink: 0;
 }
 
-.title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #000;
-}
-
 /* Title tabs */
 .title-tabs {
   display: flex;
@@ -56,10 +50,6 @@ body {
 .tab-content {
   flex: 1;
   overflow-y: auto;
-}
-
-.volume-placeholder {
-  padding: 20px;
 }
 
 .title-buttons {

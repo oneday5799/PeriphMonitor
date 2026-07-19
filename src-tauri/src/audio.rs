@@ -126,11 +126,11 @@ unsafe fn get_device_volume_state(device: &IMMDevice) -> Result<(f32, bool)> {
 unsafe fn get_device_name(device: &IMMDevice) -> Result<String> {
     let store = device.OpenPropertyStore(STGM(0))?;
     let key = PROPERTYKEY { fmtid: GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0), pid: 14 };
-    let value = unsafe { store.GetValue(&key as *const _) }?;
+    let value = store.GetValue(&key as *const _)?;
     let name = format!("{}", value).trim().to_string();
     if name.is_empty() {
         let key_desc = PROPERTYKEY { fmtid: GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0), pid: 2 };
-        let value_desc = unsafe { store.GetValue(&key_desc as *const _) }?;
+        let value_desc = store.GetValue(&key_desc as *const _)?;
         let name_desc = format!("{}", value_desc).trim().to_string();
         if !name_desc.is_empty() { return Ok(name_desc); }
         return Ok("Unknown Audio Device".to_string());

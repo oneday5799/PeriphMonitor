@@ -115,3 +115,56 @@ window.showRenameDialog = function ({ deviceName, displayName, nameSource, onUpd
     if (e.key === "Enter") overlay.querySelector(".dialog-btn.confirm")?.click();
   });
 };
+
+function updateSliderGradient(slider) {
+  const value = slider.value;
+  const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
+  slider.style.setProperty('--track-color', `linear-gradient(to right, #0078d7 0%, #0078d7 ${percentage}%, #e0e0e0 ${percentage}%, #e0e0e0 100%)`);
+}
+
+// ── Dialog ──────────────────────────────────────────────
+
+window.createDialog = function ({ title, content = [], buttons = [] }) {
+  const overlay = document.createElement("div");
+  overlay.className = "dialog-overlay";
+
+  const dialog = document.createElement("div");
+  dialog.className = "rename-dialog";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "dialog-title";
+  titleEl.textContent = title;
+  dialog.appendChild(titleEl);
+
+  for (const el of content) {
+    dialog.appendChild(el);
+  }
+
+  if (buttons.length > 0) {
+    const buttonsEl = document.createElement("div");
+    buttonsEl.className = "dialog-buttons";
+    for (const btn of buttons) {
+      const btnEl = document.createElement("button");
+      btnEl.className = `dialog-btn ${btn.className || ""}`;
+      btnEl.textContent = btn.text;
+      btnEl.addEventListener("click", btn.onClick);
+      buttonsEl.appendChild(btnEl);
+    }
+    dialog.appendChild(buttonsEl);
+  }
+
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") overlay.remove();
+  });
+
+  return overlay;
+};
+
+window.closeDialog = function (overlay) {
+  if (overlay && overlay.parentNode) {
+    overlay.remove();
+  }
+};

@@ -92,38 +92,24 @@ fn config_path() -> std::path::PathBuf {
     crate::process::exe_dir().join("config.toml")
 }
 
-fn load_config() -> Config {
-    let path = config_path();
-    match std::fs::read_to_string(&path) {
-        Ok(content) => match toml::from_str(&content) {
-            Ok(config) => config,
-            Err(e) => {
-                crate::process::append_log(&format!("[config] parse error: {}", e));
-                Config::default()
-            }
-        },
-        Err(e) => {
-            crate::process::append_log_detailed(&format!("[config] load failed (using defaults): {}", e));
-            Config::default()
-        }
-    }
-}
-
-fn save_config(config: &Config) {
-    let path = config_path();
-    if let Ok(content) = toml::to_string_pretty(config) {
-        use std::io::Write;
-        if let Err(e) = std::fs::File::create(&path)
-            .and_then(|mut f| f.write_all(content.as_bytes()))
-        {
-            crate::process::append_log(&format!("[config] save failed: {}", e));
-        }
-    }
-}
-
 pub fn init_config() {
     CONFIG.set(Mutex::new(Config::default())).ok();
-    let config = load_config();
+    let config = {
+        let path = config_path();
+        match std::fs::read_to_string(&path) {
+            Ok(content) => match toml::from_str(&content) {
+                Ok(config) => config,
+                Err(e) => {
+                    crate::process::append_log(&format!("[config] parse error: {}", e));
+                    Config::default()
+                }
+            },
+            Err(e) => {
+                crate::process::append_log_detailed(&format!("[config] load failed (using defaults): {}", e));
+                Config::default()
+            }
+        }
+    };
     *CONFIG.get().unwrap().lock().unwrap_or_else(|e| e.into_inner()) = config;
     let guard = CONFIG.get().unwrap().lock().unwrap_or_else(|e| e.into_inner());
     sync_log_cache(&guard);
@@ -143,7 +129,14 @@ where
 {
     let mut guard = CONFIG.get().expect("Config not initialized").lock().unwrap_or_else(|e| e.into_inner());
     let result = f(&mut guard);
-    save_config(&guard);
+    if let Ok(content) = toml::to_string_pretty(&*guard) {
+        use std::io::Write;
+        if let Err(e) = std::fs::File::create(&config_path())
+            .and_then(|mut f| f.write_all(content.as_bytes()))
+        {
+            crate::process::append_log(&format!("[config] save failed: {}", e));
+        }
+    }
     sync_log_cache(&guard);
     result
 }

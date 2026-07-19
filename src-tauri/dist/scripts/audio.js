@@ -76,12 +76,6 @@ function updateDeviceCard(device) {
   }
 }
 
-function updateSliderGradient(slider) {
-  const value = slider.value;
-  const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
-  slider.style.setProperty('--track-color', `linear-gradient(to right, #0078d7 0%, #0078d7 ${percentage}%, #e0e0e0 ${percentage}%, #e0e0e0 100%)`);
-}
-
 function createSliderTooltip(slider) {
   const tooltip = document.createElement("div");
   tooltip.className = "slider-tooltip";

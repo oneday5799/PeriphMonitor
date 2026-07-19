@@ -16,40 +16,31 @@ pub fn get_app_icon_by_pid(pid: u32) -> Option<String> {
             return Some(icon.clone());
         }
     }
-    let icon = get_app_icon_by_pid_uncached(pid)?;
-    let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
-    guard.entry(pid).or_insert_with(|| icon.clone());
-    Some(icon)
-}
-
-fn get_app_icon_by_pid_uncached(pid: u32) -> Option<String> {
-    unsafe {
-        // 打开进程获取可执行文件路径
-        let process_handle = windows::Win32::System::Threading::OpenProcess(
-            windows::Win32::System::Threading::PROCESS_QUERY_INFORMATION | windows::Win32::System::Threading::PROCESS_VM_READ,
-            false,
-            pid,
-        ).ok()?;
-
-        // 获取进程完整路径
-        let mut path_buf = [0u16; 260];
-        let mut path_size = path_buf.len() as u32;
-        let result = windows::Win32::System::Threading::QueryFullProcessImageNameW(
-            process_handle,
-            windows::Win32::System::Threading::PROCESS_NAME_FORMAT(0),
-            windows::core::PWSTR(path_buf.as_mut_ptr()),
-            &mut path_size,
-        );
-
-        let _ = windows::Win32::Foundation::CloseHandle(process_handle);
-
-        if result.is_err() {
-            return None;
+    let icon: Option<String> = (|| -> Option<String> {
+        unsafe {
+            let process_handle = windows::Win32::System::Threading::OpenProcess(
+                windows::Win32::System::Threading::PROCESS_QUERY_INFORMATION | windows::Win32::System::Threading::PROCESS_VM_READ,
+                false,
+                pid,
+            ).ok()?;
+            let mut path_buf = [0u16; 260];
+            let mut path_size = path_buf.len() as u32;
+            let result = windows::Win32::System::Threading::QueryFullProcessImageNameW(
+                process_handle,
+                windows::Win32::System::Threading::PROCESS_NAME_FORMAT(0),
+                windows::core::PWSTR(path_buf.as_mut_ptr()),
+                &mut path_size,
+            );
+            let _ = windows::Win32::Foundation::CloseHandle(process_handle);
+            if result.is_err() { return None; }
+            let exe_path = String::from_utf16_lossy(&path_buf[..path_size as usize]);
+            get_icon_from_path(&exe_path)
         }
-
-        let exe_path = String::from_utf16_lossy(&path_buf[..path_size as usize]);
-        get_icon_from_path(&exe_path)
-    }
+    })();
+    icon.as_ref()?;
+    let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+    guard.entry(pid).or_insert_with(|| icon.clone().unwrap());
+    icon
 }
 
 /// 从文件路径提取图标（返回base64编码的PNG）

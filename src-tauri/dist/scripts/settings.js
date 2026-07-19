@@ -458,10 +458,4 @@ async function initShutdownVolumeSettings() {
   }
 }
 
-function updateSliderGradient(slider) {
-  const val = slider.value;
-  slider.style.setProperty("--track-color",
-    `linear-gradient(to right, #0078d7 0%, #0078d7 ${val}%, #e0e0e0 ${val}%, #e0e0e0 100%)`);
-}
-
 init();
