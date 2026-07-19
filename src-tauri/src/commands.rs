@@ -160,6 +160,7 @@ pub async fn toggle_device_tray(app: tauri::AppHandle, name: String) -> Result<(
         config::with_config_mut(|c| toggle_vec_item(&mut c.tray_devices, &name));
     })
     .await?;
+    crate::tray::refresh_tray_tooltip(&app);
     let _ = app.emit("tray-devices-changed", ());
     Ok(())
 }

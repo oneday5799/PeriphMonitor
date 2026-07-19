@@ -77,9 +77,7 @@ pub fn start_device_watcher(app_handle: tauri::AppHandle) {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(10));
 
-            // 没有托盘设备时不查询，节省资源
-            let has_tray_devices = config::with_config(|c| !c.tray_devices.is_empty());
-            if !has_tray_devices {
+            if !config::with_config(|c| !c.tray_devices.is_empty()) {
                 continue;
             }
 
@@ -90,6 +88,11 @@ pub fn start_device_watcher(app_handle: tauri::AppHandle) {
             }
         }
     });
+}
+
+pub fn refresh_tray_tooltip(app_handle: &tauri::AppHandle) {
+    refresh_devices_cache();
+    update_tooltip(app_handle);
 }
 
 pub fn init_auto_start() {
