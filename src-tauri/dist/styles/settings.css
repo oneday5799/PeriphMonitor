@@ -406,3 +406,122 @@ html, body {
 .setting-select:focus {
   border-color: #0078d7;
 }
+
+.shutdown-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.shutdown-device-item {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  transition: background 0.12s;
+}
+
+.shutdown-device-item:hover {
+  background: #f0f0f0;
+}
+
+.shutdown-device-item .device-name {
+  font-size: 14px;
+  color: #1a1a1a;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+
+.shutdown-device-item .device-name.inactive {
+  color: #aaa;
+}
+
+.shutdown-device-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shutdown-device-controls .volume-slider {
+  flex: 1;
+}
+
+.shutdown-device-controls .volume-value {
+  font-size: 13px;
+  color: #333;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.shutdown-device-controls .volume-value.inactive {
+  color: #aaa;
+}
+
+/* Volume slider (same as audio page) */
+.volume-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  --track-color: linear-gradient(to right, #0078d7 0%, #0078d7 0%, #e0e0e0 0%, #e0e0e0 100%);
+  background: transparent;
+  outline: none;
+  border-radius: 10px;
+}
+
+.volume-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  background: var(--track-color);
+  border-radius: 10px;
+  border: 0;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  border: 4px solid #fff;
+  height: 18px;
+  width: 18px;
+  border-radius: 10px;
+  background: #0078d7;
+  margin-top: -8px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: all 0.1s;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  border: 3px solid #fff;
+}
+
+.volume-slider::-webkit-slider-thumb:active {
+  border: 5px solid #fff;
+}
+
+.volume-slider::-moz-range-track {
+  width: 100%;
+  height: 4px;
+  background: var(--track-color);
+  border-radius: 10px;
+  border: 0;
+}
+
+.volume-slider::-moz-range-thumb {
+  border: 4px solid #fff;
+  height: 18px;
+  width: 18px;
+  border-radius: 10px;
+  background: #0078d7;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.volume-slider::-moz-range-thumb:hover {
+  border: 3px solid #fff;
+}
+
+.volume-slider::-moz-range-thumb:active {
+  border: 5px solid #fff;
+}

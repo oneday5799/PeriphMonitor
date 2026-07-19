@@ -127,6 +127,27 @@
         <span class="setting-label">音量控制页设备列表</span>
       </div>
       <div class="audio-device-groups" id="audio-device-groups"></div>
+
+      <div class="separator"></div>
+
+      <div class="setting-row">
+        <span class="setting-label">关机前自动调整音量
+          <span class="tooltip-trigger">?
+            <span class="tooltip-content">关机时自动将指定音频设备的音量调整到设定值，适用于需要固定关机音量的场景。</span>
+          </span>
+        </span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-shutdown-volume">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div id="shutdown-volume-settings" style="display:none;">
+        <div class="setting-row">
+          <span class="setting-label">目标设备</span>
+        </div>
+        <div id="shutdown-device-list" class="shutdown-device-list"></div>
+      </div>
     </div>
   </div>
 

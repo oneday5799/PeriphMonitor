@@ -111,6 +111,7 @@ async function init() {
 
     loadDevicesAsync();
     loadAudioDevicesAsync();
+    initShutdownVolumeSettings();
 
     // Open 2.4G device list button
     document.getElementById("btn-add-24g").addEventListener("click", async () => {
@@ -363,6 +364,104 @@ function renderAudioDeviceGroups(audioDevices) {
   card.appendChild(items);
   groupEl.appendChild(card);
   container.appendChild(groupEl);
+}
+
+// ── 关机音量设置 ──────────────────────────────────────────
+
+async function initShutdownVolumeSettings() {
+  const toggle = document.getElementById("toggle-shutdown-volume");
+  const settingsWrap = document.getElementById("shutdown-volume-settings");
+  const deviceList = document.getElementById("shutdown-device-list");
+
+  toggle.checked = config.shutdown_volume_enabled || false;
+  settingsWrap.style.display = toggle.checked ? "block" : "none";
+
+  toggle.addEventListener("change", async () => {
+    config.shutdown_volume_enabled = toggle.checked;
+    settingsWrap.style.display = toggle.checked ? "block" : "none";
+    await invoke("update_config", { newConfig: config });
+  });
+
+  // Load audio devices for selection
+  try {
+    const audioDevices = await invoke("get_audio_devices");
+    const savedDevices = config.shutdown_volume_devices || {};
+
+    deviceList.innerHTML = "";
+
+    for (const dev of audioDevices) {
+      const savedVolume = savedDevices[dev.name];
+      const isEnabled = savedVolume !== undefined;
+      const volume = isEnabled ? Math.round(savedVolume * 100) : 50;
+
+      const item = document.createElement("div");
+      item.className = "shutdown-device-item";
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "device-name" + (isEnabled ? "" : " inactive");
+      nameEl.textContent = dev.name;
+
+      const controls = document.createElement("div");
+      controls.className = "shutdown-device-controls";
+
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.className = "volume-slider";
+      slider.min = "0";
+      slider.max = "100";
+      slider.value = volume;
+      updateSliderGradient(slider);
+
+      const valueEl = document.createElement("span");
+      valueEl.className = "volume-value" + (isEnabled ? "" : " inactive");
+      valueEl.textContent = volume;
+
+      // Click on name to toggle device on/off
+      nameEl.style.cursor = "pointer";
+      nameEl.addEventListener("click", async () => {
+        if (config.shutdown_volume_devices[dev.name] !== undefined) {
+          delete config.shutdown_volume_devices[dev.name];
+          nameEl.classList.add("inactive");
+          valueEl.classList.add("inactive");
+        } else {
+          config.shutdown_volume_devices[dev.name] = parseInt(slider.value) / 100;
+          nameEl.classList.remove("inactive");
+          valueEl.classList.remove("inactive");
+        }
+        await invoke("update_config", { newConfig: config });
+      });
+
+      slider.addEventListener("input", () => {
+        valueEl.textContent = slider.value;
+        updateSliderGradient(slider);
+      });
+
+      let debounceTimer = null;
+      slider.addEventListener("change", () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+          if (config.shutdown_volume_devices[dev.name] !== undefined) {
+            config.shutdown_volume_devices[dev.name] = parseInt(slider.value) / 100;
+            await invoke("update_config", { newConfig: config });
+          }
+        }, 300);
+      });
+
+      controls.appendChild(slider);
+      controls.appendChild(valueEl);
+      item.appendChild(nameEl);
+      item.appendChild(controls);
+      deviceList.appendChild(item);
+    }
+  } catch (e) {
+    console.error("Failed to load audio devices for shutdown volume:", e);
+  }
+}
+
+function updateSliderGradient(slider) {
+  const val = slider.value;
+  slider.style.setProperty("--track-color",
+    `linear-gradient(to right, #0078d7 0%, #0078d7 ${val}%, #e0e0e0 ${val}%, #e0e0e0 100%)`);
 }
 
 init();

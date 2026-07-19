@@ -24,6 +24,10 @@ pub struct Config {
     pub log_level: String,
     #[serde(default = "default_log_retention")]
     pub log_retention: String,
+    #[serde(default = "default_false")]
+    pub shutdown_volume_enabled: bool,
+    #[serde(default)]
+    pub shutdown_volume_devices: std::collections::HashMap<String, f32>,
 }
 
 fn default_false() -> bool { false }
@@ -48,6 +52,8 @@ impl Default for Config {
             log_enabled: false,
             log_level: "standard".to_string(),
             log_retention: "one_day".to_string(),
+            shutdown_volume_enabled: false,
+            shutdown_volume_devices: std::collections::HashMap::new(),
         }
     }
 }

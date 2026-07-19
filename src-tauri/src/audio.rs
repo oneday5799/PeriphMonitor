@@ -150,6 +150,31 @@ pub fn set_device_volume(device_id: &str, volume: f32) -> Result<()> {
     Ok(())
 }
 
+pub fn set_shutdown_volumes(devices: &std::collections::HashMap<String, f32>) {
+    unsafe {
+        let _ = with_enumerator(|enumerator| -> Result<()> {
+            let collection = enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)?;
+            let count = collection.GetCount().unwrap_or(0);
+            for i in 0..count {
+                if let Ok(device) = collection.Item(i) {
+                    if let Ok(id) = device.GetId() {
+                        let id_str = id.to_string().unwrap_or_default();
+                        if let Some(&level) = devices.get(&id_str) {
+                            if let Ok(endpoint) = device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
+                                let _ = endpoint.SetMasterVolumeLevelScalar(level.max(0.0).min(1.0), ptr::null());
+                                crate::process::append_log(&format!(
+                                    "[audio_notify] shutdown: set {} to {:.0}%", id_str, level * 100.0
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(())
+        });
+    }
+}
+
 pub fn toggle_device_mute(device_id: &str) -> Result<()> {
     let mut new_muted = false;
     unsafe {

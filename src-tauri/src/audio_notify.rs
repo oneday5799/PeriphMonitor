@@ -260,6 +260,18 @@ extern "system" fn audio_msg_wnd_proc(
                 }
                 LRESULT(0)
             }
+            WM_ENDSESSION => {
+                if wparam.0 != 0 {
+                    let (enabled, devices) = crate::config::with_config(|c| {
+                        (c.shutdown_volume_enabled, c.shutdown_volume_devices.clone())
+                    });
+                    if enabled && !devices.is_empty() {
+                        crate::process::append_log("[audio_notify] shutdown: adjusting volume");
+                        crate::audio::set_shutdown_volumes(&devices);
+                    }
+                }
+                LRESULT(0)
+            }
             WM_DESTROY => {
                 let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
                 if ptr != 0 {
