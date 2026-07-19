@@ -46,6 +46,10 @@ if (window.__TAURI__ && window.__TAURI__.event) {
       }
     }
   });
+
+  window.__TAURI__.event.listen('audio-devices-changed', () => {
+    loadAudioDevices();
+  });
 }
 
 function updateDeviceCard(device) {

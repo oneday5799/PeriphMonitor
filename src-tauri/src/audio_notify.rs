@@ -10,10 +10,9 @@ use windows_core::implement;
 
 use crate::audio::VolumeChangeEvent;
 
-const WM_TIMER_CHECK: u32 = 1;
-const TIMER_INTERVAL_MS: u32 = 10_000;
+const WM_SYNC_CALLBACKS: u32 = 0x0400;
 
-// ── COM 回调实现 ──────────────────────────────────────────
+// ── 音量回调实现 ──────────────────────────────────────────
 
 #[implement(IAudioEndpointVolumeCallback)]
 struct VolumeCallback {
@@ -39,18 +38,59 @@ impl IAudioEndpointVolumeCallback_Impl for VolumeCallback_Impl {
     }
 }
 
+// ── 设备通知回调（IMMNotificationClient）──────────────────
+
+#[implement(IMMNotificationClient)]
+struct DeviceNotification {
+    hwnd: HWND,
+}
+
+impl IMMNotificationClient_Impl for DeviceNotification_Impl {
+    fn OnDeviceStateChanged(&self, _pwstrdeviceid: &PCWSTR, _dwnewstate: DEVICE_STATE) -> Result<()> {
+        unsafe { let _ = PostMessageW(Some(self.hwnd), WM_SYNC_CALLBACKS, WPARAM(0), LPARAM(0)); }
+        Ok(())
+    }
+
+    fn OnDeviceAdded(&self, _pwstrdeviceid: &PCWSTR) -> Result<()> {
+        unsafe { let _ = PostMessageW(Some(self.hwnd), WM_SYNC_CALLBACKS, WPARAM(0), LPARAM(0)); }
+        Ok(())
+    }
+
+    fn OnDeviceRemoved(&self, _pwstrdeviceid: &PCWSTR) -> Result<()> {
+        unsafe { let _ = PostMessageW(Some(self.hwnd), WM_SYNC_CALLBACKS, WPARAM(0), LPARAM(0)); }
+        Ok(())
+    }
+
+    fn OnDefaultDeviceChanged(
+        &self,
+        _edflow: EDataFlow,
+        _erender: ERole,
+        _pwstrdefaultdeviceid: &PCWSTR,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn OnPropertyValueChanged(&self, _pwstrdeviceid: &PCWSTR, _key: &PROPERTYKEY) -> Result<()> {
+        Ok(())
+    }
+}
+
 // ── 音频监控器 ───────────────────────────────────────────
 
 struct AudioMonitor {
     enumerator: IMMDeviceEnumerator,
     callbacks: HashMap<String, (IAudioEndpointVolume, IAudioEndpointVolumeCallback)>,
+    notification: IMMNotificationClient,
     app_handle: tauri::AppHandle,
 }
 
 impl Drop for AudioMonitor {
     fn drop(&mut self) {
-        for (_, (endpoint, callback)) in self.callbacks.drain() {
-            unsafe {
+        unsafe {
+            let _ = self
+                .enumerator
+                .UnregisterEndpointNotificationCallback(&self.notification);
+            for (_, (endpoint, callback)) in self.callbacks.drain() {
                 let _ = endpoint.UnregisterControlChangeNotify(&callback);
             }
         }
@@ -58,13 +98,18 @@ impl Drop for AudioMonitor {
 }
 
 impl AudioMonitor {
-    fn new(app_handle: tauri::AppHandle) -> Result<Self> {
+    fn new(hwnd: HWND, app_handle: tauri::AppHandle) -> Result<Self> {
         unsafe {
             let enumerator: IMMDeviceEnumerator =
                 CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+
+            let notification: IMMNotificationClient = DeviceNotification { hwnd }.into();
+            enumerator.RegisterEndpointNotificationCallback(&notification)?;
+
             Ok(Self {
                 enumerator,
                 callbacks: HashMap::new(),
+                notification,
                 app_handle,
             })
         }
@@ -172,7 +217,7 @@ pub fn init_audio_notify(app_handle: tauri::AppHandle) {
             }
         };
 
-        let mut monitor = match AudioMonitor::new(app_handle) {
+        let mut monitor = match AudioMonitor::new(hwnd, app_handle) {
             Ok(m) => m,
             Err(e) => {
                 crate::process::append_log(&format!(
@@ -184,10 +229,8 @@ pub fn init_audio_notify(app_handle: tauri::AppHandle) {
         };
         monitor.sync_callbacks();
 
-        let monitor_ptr = &mut monitor as *mut AudioMonitor;
-        SetWindowLongPtrW(hwnd, GWLP_USERDATA, monitor_ptr as isize);
-
-        let _ = SetTimer(Some(hwnd), 1, TIMER_INTERVAL_MS, None);
+        let monitor_ptr = Box::leak(Box::new(monitor));
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, monitor_ptr as *mut AudioMonitor as isize);
 
         crate::process::append_log("[audio_notify] STA thread started");
 
@@ -209,13 +252,11 @@ extern "system" fn audio_msg_wnd_proc(
 ) -> LRESULT {
     unsafe {
         match msg {
-            WM_TIMER => {
-                if wparam.0 as u32 == WM_TIMER_CHECK {
-                    let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
-                    if ptr != 0 {
-                        let monitor = &mut *(ptr as *mut AudioMonitor);
-                        monitor.sync_callbacks();
-                    }
+            WM_SYNC_CALLBACKS => {
+                let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+                if ptr != 0 {
+                    let monitor = &mut *(ptr as *mut AudioMonitor);
+                    monitor.sync_callbacks();
                 }
                 LRESULT(0)
             }
