@@ -18,15 +18,18 @@ struct RawDeviceEntry {
 }
 
 static DEVICE_DATA: OnceLock<RwLock<HashMap<String, HashMap<String, DeviceInfo>>>> = OnceLock::new();
-static LAST_MTIME: OnceLock<Mutex<Option<SystemTime>>> = OnceLock::new();
+static LAST_MTIME: OnceLock<Mutex<Option<(Option<SystemTime>, Option<SystemTime>)>>> = OnceLock::new();
 
-fn data_file_path() -> std::path::PathBuf {
+fn default_data_path() -> std::path::PathBuf {
     crate::process::exe_dir().join("data").join("wireless_24g_devices.json")
 }
 
-fn load_data_from_file() -> HashMap<String, HashMap<String, DeviceInfo>> {
-    let path = data_file_path();
-    match std::fs::read_to_string(&path) {
+fn user_data_path() -> std::path::PathBuf {
+    crate::process::exe_dir().join("wireless_24g_devices_user.json")
+}
+
+fn load_data_from_path(path: &std::path::Path) -> HashMap<String, HashMap<String, DeviceInfo>> {
+    match std::fs::read_to_string(path) {
         Ok(content) => {
             match serde_json::from_str::<HashMap<String, HashMap<String, RawDeviceEntry>>>(&content) {
                 Ok(raw) => {
@@ -41,43 +44,57 @@ fn load_data_from_file() -> HashMap<String, HashMap<String, DeviceInfo>> {
                         }
                         result.insert(vid, pids_map);
                     }
-                    crate::process::append_log_detailed(&format!("[device_data] loaded {} VIDs", result.len()));
                     result
                 }
                 Err(e) => {
-                    crate::process::append_log(&format!("[device_data] JSON parse error: {}", e));
+                    crate::process::append_log(&format!("[device_data] JSON parse error ({}): {}", path.display(), e));
                     HashMap::new()
                 }
             }
         }
-        Err(e) => {
-            crate::process::append_log_detailed(&format!("[device_data] file not found: {}", e));
-            HashMap::new()
-        }
+        Err(_) => HashMap::new(),
     }
 }
 
+fn load_all_data() -> HashMap<String, HashMap<String, DeviceInfo>> {
+    let mut result = load_data_from_path(&default_data_path());
+    let user = load_data_from_path(&user_data_path());
+    let user_count = user.len();
+    for (vid, pids) in user {
+        let entry = result.entry(vid).or_insert_with(HashMap::new);
+        for (pid, info) in pids {
+            entry.insert(pid, info);
+        }
+    }
+    crate::process::append_log_detailed(&format!(
+        "[device_data] loaded {} VIDs ({} user)", result.len(), user_count
+    ));
+    result
+}
+
 pub fn init_device_data() {
-    let data = load_data_from_file();
+    let data = load_all_data();
     DEVICE_DATA.set(RwLock::new(data)).ok();
 }
 
 pub fn reload_device_data() {
-    let path = data_file_path();
-    let current_mtime = std::fs::metadata(&path)
+    let default_mtime = std::fs::metadata(default_data_path())
+        .and_then(|m| m.modified())
+        .ok();
+    let user_mtime = std::fs::metadata(user_data_path())
         .and_then(|m| m.modified())
         .ok();
 
     let last = LAST_MTIME.get_or_init(|| Mutex::new(None));
     if let Ok(mut guard) = last.lock() {
-        if *guard == current_mtime {
+        if *guard == Some((default_mtime, user_mtime)) {
             return;
         }
-        *guard = current_mtime;
+        *guard = Some((default_mtime, user_mtime));
     }
 
     if let Some(rw_lock) = DEVICE_DATA.get() {
-        let new_data = load_data_from_file();
+        let new_data = load_all_data();
         if let Ok(mut data) = rw_lock.write() {
             *data = new_data;
         }
