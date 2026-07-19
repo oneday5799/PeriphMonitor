@@ -179,7 +179,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     crate::process::append_log(&format!("[tray] auto_start toggled: {}", new_val));
                     let _ = app.emit("auto-start-changed", new_val);
                 }
-                "exit" => { std::process::exit(0); }
+                "exit" => { app.exit(0); }
                 id if id.starts_with("audio_dev_") => {
                     let device_id = id[10..].to_owned();
                     if !device_id.is_empty() {

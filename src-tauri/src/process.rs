@@ -27,8 +27,7 @@ pub fn new_hidden_cmd(program: &str) -> Command {
 
 /// 获取日志文件路径
 fn log_path() -> std::path::PathBuf {
-    let retention = crate::config::with_config(|c| c.log_retention.clone());
-    if retention == "once" {
+    if crate::config::log_once() {
         exe_dir().join(format!("debug_{}.log", std::process::id()))
     } else {
         exe_dir().join("debug.log")
@@ -37,8 +36,7 @@ fn log_path() -> std::path::PathBuf {
 
 /// 追加日志到文件（标准级别）
 pub fn append_log(msg: &str) {
-    let (enabled, level) = crate::config::with_config(|c| (c.log_enabled, c.log_level.clone()));
-    if !enabled || level != "standard" {
+    if !crate::config::log_enabled() || !crate::config::log_level_is_standard() {
         return;
     }
     write_log(msg);
@@ -46,8 +44,7 @@ pub fn append_log(msg: &str) {
 
 /// 追加日志到文件（详细级别）
 pub fn append_log_detailed(msg: &str) {
-    let (enabled, level) = crate::config::with_config(|c| (c.log_enabled, c.log_level.clone()));
-    if !enabled || level != "detailed" {
+    if !crate::config::log_enabled() || crate::config::log_level_is_standard() {
         return;
     }
     write_log(msg);

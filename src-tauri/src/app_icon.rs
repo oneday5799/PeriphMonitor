@@ -1,10 +1,28 @@
 use image::RgbaImage;
 use image::codecs::png::PngEncoder;
 use image::ImageEncoder;
+use std::collections::HashMap;
 use std::io::Cursor;
+use std::sync::{Mutex, OnceLock};
+
+static ICON_CACHE: OnceLock<Mutex<HashMap<u32, String>>> = OnceLock::new();
 
 /// 从进程PID获取应用图标（返回base64编码的PNG）
 pub fn get_app_icon_by_pid(pid: u32) -> Option<String> {
+    let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    {
+        let guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(icon) = guard.get(&pid) {
+            return Some(icon.clone());
+        }
+    }
+    let icon = get_app_icon_by_pid_uncached(pid)?;
+    let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+    guard.entry(pid).or_insert_with(|| icon.clone());
+    Some(icon)
+}
+
+fn get_app_icon_by_pid_uncached(pid: u32) -> Option<String> {
     unsafe {
         // 打开进程获取可执行文件路径
         let process_handle = windows::Win32::System::Threading::OpenProcess(

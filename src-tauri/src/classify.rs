@@ -32,15 +32,15 @@ pub fn classify_device(name: &str, pnp_class: &str, pnp_id: &str, caption: &str)
         || pnp_id.starts_with("SWD\\")
     {
         if is_audio(&lower_combined) { return DevType::Audio; }
-        if is_usb(name, caption) { return DevType::Usb; }
+        if is_usb(&lower_combined, caption) { return DevType::Usb; }
         return DevType::Other;
     }
     if pnp_class.eq_ignore_ascii_case("HIDClass") {
         if is_audio(&lower_combined) { return DevType::Audio; }
-        if is_usb(name, caption) { return DevType::Usb; }
+        if is_usb(&lower_combined, caption) { return DevType::Usb; }
         return DevType::Other;
     }
-    if pnp_id.starts_with("USB\\") && is_usb(name, caption) {
+    if pnp_id.starts_with("USB\\") && is_usb(&lower_combined, caption) {
         return DevType::Usb;
     }
     DevType::Other
@@ -77,7 +77,15 @@ fn is_audio(lower: &str) -> bool {
 }
 
 fn is_usb(lower_name: &str, caption: &str) -> bool {
-    let combined = format!("{} {}", lower_name, caption).to_lowercase();
+    let combined = if caption.is_empty() {
+        lower_name.to_string()
+    } else {
+        let mut s = String::with_capacity(lower_name.len() + 1 + caption.len());
+        s.push_str(lower_name);
+        s.push(' ');
+        s.push_str(&caption.to_lowercase());
+        s
+    };
     [
         "mouse", "keyboard", "controller", "gamepad", "鼠标", "键盘", "手柄", "xbox", "webcam",
         "logitech", "razer", "corsair", "keychron", "orochi", "deathadder", "viper",

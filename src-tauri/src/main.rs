@@ -167,9 +167,5 @@ fn main() {
             show_error_box(&format!("应用初始化失败：\n{}", e));
             std::process::exit(1);
         })
-        .run(|_app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                api.prevent_exit();
-            }
-        });
+        .run(|_app_handle, _event| {});
 }

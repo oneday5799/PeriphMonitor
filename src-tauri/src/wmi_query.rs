@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 use regex::Regex;
+use std::sync::{Mutex, OnceLock};
 use wmi::WMIConnection;
 
 use crate::device::{Device, DevType};
@@ -8,6 +9,21 @@ use crate::config;
 use crate::classify::{classify_device, classify_bluetooth, is_wireless_24g_by_vid_pid, is_bt_service, is_generic_hid, is_system_device};
 use crate::device_data;
 use crate::bluetooth::find_paired_bluetooth_devices;
+
+static CACHED_REGEX: OnceLock<Mutex<Option<(String, Regex)>>> = OnceLock::new();
+
+fn get_cached_regex(pattern: &str) -> Option<Regex> {
+    let cache = CACHED_REGEX.get_or_init(|| Mutex::new(None));
+    let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((ref cached_pat, ref re)) = *guard {
+        if cached_pat == pattern {
+            return Some(re.clone());
+        }
+    }
+    let re = Regex::new(&format!("(?i)({})", pattern)).ok()?;
+    *guard = Some((pattern.to_string(), re.clone()));
+    Some(re)
+}
 
 fn core_name(n: &str) -> String {
     let inner = if let Some(i) = n.find(" (") {
@@ -60,6 +76,7 @@ fn try_insert(
     dedup: bool,
     seen: &mut HashSet<String>,
     devices: &mut Vec<Device>,
+    cn_index: &mut HashMap<String, Vec<usize>>,
 ) {
     let effective_name = display_name.unwrap_or(name);
     let cn = if display_name.is_some() {
@@ -69,42 +86,53 @@ fn try_insert(
     };
     let has_conn_type = is_bluetooth || is_wireless_24g;
 
-    if dedup && !has_conn_type && devices.iter().any(|d| {
-        let ecn = core_name(&d.name);
-        (ecn == cn || d.name == cn) && (d.is_bluetooth || d.is_wireless_24g)
-    }) {
-        return;
+    if dedup && !has_conn_type {
+        if let Some(indices) = cn_index.get(&cn) {
+            if indices.iter().any(|&i| {
+                let d = &devices[i];
+                (d.name == cn) && (d.is_bluetooth || d.is_wireless_24g)
+            }) {
+                return;
+            }
+        }
     }
 
     if dedup && has_conn_type {
-        if let Some(pos) = devices.iter().position(|d| {
-            let ecn = core_name(&d.name);
-            (ecn == cn || d.name == cn) && !d.is_bluetooth && !d.is_wireless_24g
-        }) {
-            devices.remove(pos);
+        if let Some(indices) = cn_index.get(&cn) {
+            if let Some(&pos) = indices.iter().find(|&&i| {
+                let d = &devices[i];
+                (d.name == cn) && !d.is_bluetooth && !d.is_wireless_24g
+            }) {
+                devices.remove(pos);
+                rebuild_cn_index(cn_index, devices);
+            }
         }
     }
 
     let conn_tag = if is_bluetooth { "bt" } else if is_wireless_24g { "24g" } else { "usb" };
     let dedup_key = format!("{}:{}", cn, conn_tag);
     if dedup && !seen.insert(dedup_key) {
-        if let Some(existing) = devices.iter_mut().find(|d| {
-            let ecn = core_name(&d.name);
-            let econn = if d.is_bluetooth { "bt" } else if d.is_wireless_24g { "24g" } else { "usb" };
-            (ecn == cn || d.name == cn) && econn == conn_tag
-        }) {
-            if name.len() < existing.name.len() {
-                existing.name = effective_name.to_string();
-                existing.status = status.to_string();
-                if existing.device_id.is_none() {
-                    existing.device_id = device_id;
+        if let Some(indices) = cn_index.get(&cn) {
+            if let Some(&pos) = indices.iter().find(|&&i| {
+                let d = &devices[i];
+                let econn = if d.is_bluetooth { "bt" } else if d.is_wireless_24g { "24g" } else { "usb" };
+                (d.name == cn) && econn == conn_tag
+            }) {
+                let existing = &mut devices[pos];
+                if name.len() < existing.name.len() {
+                    existing.name = effective_name.to_string();
+                    existing.status = status.to_string();
+                    if existing.device_id.is_none() {
+                        existing.device_id = device_id;
+                    }
+                    existing.is_bluetooth = existing.is_bluetooth || is_bluetooth;
+                    existing.is_wireless_24g = existing.is_wireless_24g || is_wireless_24g;
                 }
-                existing.is_bluetooth = existing.is_bluetooth || is_bluetooth;
-                existing.is_wireless_24g = existing.is_wireless_24g || is_wireless_24g;
             }
         }
         return;
     }
+    let idx = devices.len();
     devices.push(Device {
         name: effective_name.to_string(),
         dt,
@@ -114,6 +142,15 @@ fn try_insert(
         is_bluetooth,
         is_wireless_24g,
     });
+    cn_index.entry(cn).or_default().push(idx);
+}
+
+fn rebuild_cn_index(cn_index: &mut HashMap<String, Vec<usize>>, devices: &[Device]) {
+    cn_index.clear();
+    for (i, d) in devices.iter().enumerate() {
+        let cn = core_name(&d.name);
+        cn_index.entry(cn).or_default().push(i);
+    }
 }
 
 /// 从 WMI 行中提取字符串字段
@@ -135,6 +172,7 @@ struct BatteryDevice {
 pub fn query_devices() -> Vec<Device> {
     let mut all = vec![];
     let mut seen = HashSet::new();
+    let mut cn_index: HashMap<String, Vec<usize>> = HashMap::new();
 
     crate::device_data::reload_device_data();
 
@@ -153,13 +191,13 @@ pub fn query_devices() -> Vec<Device> {
 
     let mut bt_names = HashSet::new();
 
-    query_pnp_devices(&con, dedup_enabled, &mut seen, &mut all);
-    query_bt_devices(dedup_enabled, &mut seen, &mut all, &mut bt_names);
-    query_battery_devices(&con, dedup_enabled, &mut seen, &mut all);
+    query_pnp_devices(&con, dedup_enabled, &mut seen, &mut all, &mut cn_index);
+    query_bt_devices(dedup_enabled, &mut seen, &mut all, &mut bt_names, &mut cn_index);
+    query_battery_devices(&con, dedup_enabled, &mut seen, &mut all, &mut cn_index);
 
     // Apply user-defined regex filter
     if filter_enabled && !filter_regex_str.is_empty() {
-        if let Ok(re) = Regex::new(&format!("(?i)({})", filter_regex_str)) {
+        if let Some(re) = get_cached_regex(&filter_regex_str) {
             all.retain(|d| !re.is_match(&d.name));
         }
     }
@@ -180,6 +218,7 @@ fn query_pnp_devices(
     dedup: bool,
     seen: &mut HashSet<String>,
     all: &mut Vec<Device>,
+    cn_index: &mut HashMap<String, Vec<usize>>,
 ) {
     const PNPCLASS_WHITELIST: &[&str] = &["AudioEndpoint", "Bluetooth", "HIDClass", "Keyboard", "MEDIA", "Mouse", "Monitor"];
 
@@ -243,7 +282,7 @@ fn query_pnp_devices(
         } else {
             None
         };
-        try_insert(&n, display_name.as_deref(), dt, s, None, None, false, is_24g, dedup, seen, all);
+        try_insert(&n, display_name.as_deref(), dt, s, None, None, false, is_24g, dedup, seen, all, cn_index);
     }
 }
 
@@ -252,6 +291,7 @@ fn query_bt_devices(
     seen: &mut HashSet<String>,
     all: &mut Vec<Device>,
     bt_names: &mut HashSet<String>,
+    cn_index: &mut HashMap<String, Vec<usize>>,
 ) {
     let btc_devices = match find_paired_bluetooth_devices() {
         Ok(d) => d,
@@ -276,7 +316,7 @@ fn query_bt_devices(
                 existing.device_id = Some(device_id);
             }
         } else {
-            try_insert(&name, None, dt, s, battery.map(|b| b as i32), Some(device_id), true, false, dedup, seen, all);
+            try_insert(&name, None, dt, s, battery.map(|b| b as i32), Some(device_id), true, false, dedup, seen, all, cn_index);
         }
     }
 }
@@ -286,6 +326,7 @@ fn query_battery_devices(
     dedup: bool,
     seen: &mut HashSet<String>,
     all: &mut Vec<Device>,
+    cn_index: &mut HashMap<String, Vec<usize>>,
 ) {
     if let Ok(r) = con.query::<BatteryDevice>() {
         for d in r {
@@ -294,6 +335,7 @@ fn query_battery_devices(
                 d.status.unwrap_or_default(),
             );
             if !n.is_empty() && (!dedup || seen.insert(format!("{}:usb", core_name(&n)))) {
+                let idx = all.len();
                 all.push(Device {
                     name: n,
                     dt: DevType::Battery,
@@ -303,6 +345,7 @@ fn query_battery_devices(
                     is_bluetooth: false,
                     is_wireless_24g: false,
                 });
+                cn_index.entry(core_name(&all[idx].name)).or_default().push(idx);
             }
         }
     }

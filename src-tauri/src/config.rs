@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -60,6 +60,27 @@ impl Config {
 }
 
 static CONFIG: OnceLock<Mutex<Config>> = OnceLock::new();
+static LOG_ENABLED: AtomicBool = AtomicBool::new(false);
+static LOG_LEVEL_STANDARD: AtomicBool = AtomicBool::new(true);
+static LOG_ONCE: AtomicBool = AtomicBool::new(false);
+
+pub fn log_enabled() -> bool {
+    LOG_ENABLED.load(Ordering::Relaxed)
+}
+
+pub fn log_level_is_standard() -> bool {
+    LOG_LEVEL_STANDARD.load(Ordering::Relaxed)
+}
+
+pub fn log_once() -> bool {
+    LOG_ONCE.load(Ordering::Relaxed)
+}
+
+fn sync_log_cache(config: &Config) {
+    LOG_ENABLED.store(config.log_enabled, Ordering::Relaxed);
+    LOG_LEVEL_STANDARD.store(config.log_level == "standard", Ordering::Relaxed);
+    LOG_ONCE.store(config.log_retention == "once", Ordering::Relaxed);
+}
 
 fn config_path() -> std::path::PathBuf {
     crate::process::exe_dir().join("config.toml")
@@ -98,6 +119,8 @@ pub fn init_config() {
     CONFIG.set(Mutex::new(Config::default())).ok();
     let config = load_config();
     *CONFIG.get().unwrap().lock().unwrap_or_else(|e| e.into_inner()) = config;
+    let guard = CONFIG.get().unwrap().lock().unwrap_or_else(|e| e.into_inner());
+    sync_log_cache(&guard);
 }
 
 pub fn with_config<F, R>(f: F) -> R
@@ -115,5 +138,6 @@ where
     let mut guard = CONFIG.get().expect("Config not initialized").lock().unwrap_or_else(|e| e.into_inner());
     let result = f(&mut guard);
     save_config(&guard);
+    sync_log_cache(&guard);
     result
 }

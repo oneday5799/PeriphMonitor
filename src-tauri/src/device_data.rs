@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::sync::{OnceLock, RwLock};
+use std::sync::{Mutex, OnceLock, RwLock};
+use std::time::SystemTime;
 
 use serde::Deserialize;
 
@@ -17,6 +18,7 @@ struct RawDeviceEntry {
 }
 
 static DEVICE_DATA: OnceLock<RwLock<HashMap<String, HashMap<String, DeviceInfo>>>> = OnceLock::new();
+static LAST_MTIME: OnceLock<Mutex<Option<SystemTime>>> = OnceLock::new();
 
 fn data_file_path() -> std::path::PathBuf {
     crate::process::exe_dir().join("data").join("wireless_24g_devices.json")
@@ -61,6 +63,19 @@ pub fn init_device_data() {
 }
 
 pub fn reload_device_data() {
+    let path = data_file_path();
+    let current_mtime = std::fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .ok();
+
+    let last = LAST_MTIME.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = last.lock() {
+        if *guard == current_mtime {
+            return;
+        }
+        *guard = current_mtime;
+    }
+
     if let Some(rw_lock) = DEVICE_DATA.get() {
         let new_data = load_data_from_file();
         if let Ok(mut data) = rw_lock.write() {
