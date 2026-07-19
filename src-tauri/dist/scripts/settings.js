@@ -120,6 +120,15 @@ async function init() {
         console.error("Failed to open file:", e);
       }
     });
+
+    // Help link for 2.4G device
+    document.getElementById("help-24g").addEventListener("click", async () => {
+      try {
+        await invoke("open_url", { url: "https://github.com/oneday5799/PeriphMonitor#%E6%B7%BB%E5%8A%A0%E8%87%AA%E5%AE%9A%E4%B9%89-24g-%E8%AE%BE%E5%A4%87" });
+      } catch (e) {
+        console.error("Failed to open URL:", e);
+      }
+    });
   } catch (e) {
     console.error("Failed to load settings:", e);
   }

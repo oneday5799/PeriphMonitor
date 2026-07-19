@@ -122,10 +122,8 @@ html, body {
   text-decoration: none;
   margin-left: 6px;
   cursor: pointer;
-  vertical-align: middle;
-  flex-shrink: 0;
   position: relative;
-  top: -1px;
+  vertical-align: middle;
 }
 
 .help-link:hover {
