@@ -57,8 +57,5 @@
     "1A08": { "name": "Corsair Device", "type": "other" },
     "1A09": { "name": "Corsair Device", "type": "other" },
     "1A0A": { "name": "Corsair Device", "type": "other" }
-  },
-  "25A7": {
-    "FA70": { "name": "RK100-B", "type": "keyboard" }
   }
 }
