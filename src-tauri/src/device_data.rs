@@ -25,7 +25,7 @@ fn default_data_path() -> std::path::PathBuf {
 }
 
 fn user_data_path() -> std::path::PathBuf {
-    crate::process::exe_dir().join("wireless_24g_devices_user.json")
+    crate::process::exe_dir().join("data").join("wireless_24g_devices_user.json")
 }
 
 fn load_data_from_path(path: &std::path::Path) -> HashMap<String, HashMap<String, DeviceInfo>> {

@@ -141,7 +141,7 @@ pub async fn check_bt_connection(name: String) -> Result<Option<bool>, String> {
 
 #[tauri::command]
 pub fn open_24g_device_file() -> Result<(), String> {
-    let path = crate::process::exe_dir().join("wireless_24g_devices_user.json");
+    let path = crate::process::exe_dir().join("data").join("wireless_24g_devices_user.json");
     if !path.exists() {
         std::fs::write(&path, "{}").map_err(|e| e.to_string())?;
     }
