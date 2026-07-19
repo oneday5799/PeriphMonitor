@@ -459,6 +459,12 @@ html, body {
   color: #aaa;
 }
 
+.shutdown-hint {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 8px;
+}
+
 /* Volume slider (same as audio page) */
 .volume-slider {
   flex: 1;

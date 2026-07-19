@@ -197,7 +197,7 @@ pub fn init_audio_notify(app_handle: tauri::AppHandle) {
         RegisterClassExW(&wc);
 
         let hwnd = match CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
+            WS_EX_TOOLWINDOW,
             PCWSTR(class_name.as_ptr()),
             PCWSTR::null(),
             WINDOW_STYLE::default(),
@@ -205,7 +205,7 @@ pub fn init_audio_notify(app_handle: tauri::AppHandle) {
             0,
             0,
             0,
-            Some(HWND_MESSAGE),
+            None,
             None,
             Some(HINSTANCE(std::ptr::null_mut())),
             None,
@@ -261,10 +261,17 @@ extern "system" fn audio_msg_wnd_proc(
                 LRESULT(0)
             }
             WM_ENDSESSION => {
+                crate::process::append_log(&format!(
+                    "[audio_notify] WM_ENDSESSION received, wparam={}", wparam.0
+                ));
                 if wparam.0 != 0 {
                     let (enabled, devices) = crate::config::with_config(|c| {
                         (c.shutdown_volume_enabled, c.shutdown_volume_devices.clone())
                     });
+                    crate::process::append_log(&format!(
+                        "[audio_notify] shutdown config: enabled={}, devices={:?}",
+                        enabled, devices
+                    ));
                     if enabled && !devices.is_empty() {
                         crate::process::append_log("[audio_notify] shutdown: adjusting volume");
                         crate::audio::set_shutdown_volumes(&devices);

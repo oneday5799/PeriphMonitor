@@ -157,15 +157,13 @@ pub fn set_shutdown_volumes(devices: &std::collections::HashMap<String, f32>) {
             let count = collection.GetCount().unwrap_or(0);
             for i in 0..count {
                 if let Ok(device) = collection.Item(i) {
-                    if let Ok(id) = device.GetId() {
-                        let id_str = id.to_string().unwrap_or_default();
-                        if let Some(&level) = devices.get(&id_str) {
-                            if let Ok(endpoint) = device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
-                                let _ = endpoint.SetMasterVolumeLevelScalar(level.max(0.0).min(1.0), ptr::null());
-                                crate::process::append_log(&format!(
-                                    "[audio_notify] shutdown: set {} to {:.0}%", id_str, level * 100.0
-                                ));
-                            }
+                    let name = get_device_name(&device).unwrap_or_default();
+                    if let Some(&level) = devices.get(&name) {
+                        if let Ok(endpoint) = device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) {
+                            let _ = endpoint.SetMasterVolumeLevelScalar(level.max(0.0).min(1.0), ptr::null());
+                            crate::process::append_log(&format!(
+                                "[audio_notify] shutdown: set '{}' to {:.0}%", name, level * 100.0
+                            ));
                         }
                     }
                 }
