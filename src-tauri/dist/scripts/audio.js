@@ -477,6 +477,7 @@ function createAudioSessionCard(session) {
     img.style.height = "100%";
     img.style.borderRadius = "4px";
     img.onerror = () => { iconEl.textContent = session.name.charAt(0).toUpperCase(); };
+    iconEl.style.background = "transparent";
     iconEl.appendChild(img);
   } else {
     iconEl.textContent = session.name.charAt(0).toUpperCase();
