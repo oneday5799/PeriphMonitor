@@ -2,19 +2,11 @@ use std::collections::{HashMap, HashSet};
 use crate::device::{Device, DevType};
 
 pub fn core_name(n: &str) -> String {
-    let inner = if let Some(i) = n.find(" (") {
+    let base = if let Some(i) = n.find(" (") {
         if let Some(j) = n.rfind(')') {
-            if j > i + 2 {
-                n[i + 2..j].to_string()
-            } else {
-                n.to_string()
-            }
-        } else {
-            n.to_string()
-        }
-    } else {
-        n.to_string()
-    };
+            if j > i + 2 { &n[i + 2..j] } else { n }
+        } else { n }
+    } else { n };
     for suffix in &[
         " Hands-Free AG",
         " Hands-Free HF",
@@ -33,11 +25,11 @@ pub fn core_name(n: &str) -> String {
         " Avrcp 传输",
         " 音频网关服务",
     ] {
-        if let Some(pos) = inner.strip_suffix(suffix) {
+        if let Some(pos) = base.strip_suffix(suffix) {
             return pos.to_string();
         }
     }
-    inner
+    base.to_string()
 }
 
 pub fn try_insert(

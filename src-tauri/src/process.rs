@@ -66,8 +66,9 @@ fn write_log(msg: &str) {
 /// 清理旧日志文件（根据保留时长设置）
 pub fn clean_old_logs() {
     use std::time::{SystemTime, Duration};
+    use crate::config::LogRetention;
 
-    let (enabled, retention) = crate::config::with_config(|c| (c.log_enabled, c.log_retention.clone()));
+    let (enabled, retention) = crate::config::with_config(|c| (c.log_enabled, c.log_retention));
     if !enabled {
         return;
     }
@@ -75,8 +76,8 @@ pub fn clean_old_logs() {
     let dir = exe_dir();
     let now = SystemTime::now();
 
-    let max_age = match retention.as_str() {
-        "once" => {
+    let max_age = match retention {
+        LogRetention::Once => {
             // 一次模式：删除所有 debug*.log
             if let Ok(entries) = std::fs::read_dir(&dir) {
                 for entry in entries.flatten() {
@@ -89,10 +90,10 @@ pub fn clean_old_logs() {
             }
             return;
         }
-        "three_days" => Duration::from_secs(3 * 86400),
-        "one_week" => Duration::from_secs(7 * 86400),
-        "one_month" => Duration::from_secs(30 * 86400),
-        _ => Duration::from_secs(86400), // one_day
+        LogRetention::ThreeDays => Duration::from_secs(3 * 86400),
+        LogRetention::OneWeek => Duration::from_secs(7 * 86400),
+        LogRetention::OneMonth => Duration::from_secs(30 * 86400),
+        LogRetention::OneDay => Duration::from_secs(86400),
     };
 
     // 非 once 模式：清理超过保留时长的 debug*.log 文件

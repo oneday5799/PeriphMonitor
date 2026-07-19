@@ -127,28 +127,30 @@ pub fn get_device_type(vid: &str, pid: &str) -> String {
 }
 
 pub fn extract_vid_pid(pnp_id: &str) -> Option<(String, String)> {
-    let upper = pnp_id.to_uppercase();
-    let vid = match upper.find("VID_") {
-        Some(pos) => {
-            let start = pos + 4;
-            if start + 4 <= upper.len() {
-                upper[start..start + 4].to_string()
-            } else {
-                return None;
-            }
-        }
-        None => return None,
-    };
-    let pid = match upper.find("PID_") {
-        Some(pos) => {
-            let start = pos + 4;
-            if start + 4 <= upper.len() {
-                upper[start..start + 4].to_string()
-            } else {
-                return None;
-            }
-        }
-        None => return None,
-    };
+    // 大小写不敏感查找 VID_ 和 PID_，避免整串 to_uppercase()
+    let bytes = pnp_id.as_bytes();
+    let vid = find_field(bytes, b"VID_")?;
+    let pid = find_field(bytes, b"PID_")?;
     Some((vid, pid))
+}
+
+fn find_field(bytes: &[u8], marker: &[u8]) -> Option<String> {
+    // 大小写不敏感搜索 marker
+    let mut i = 0;
+    'outer: while i + marker.len() <= bytes.len() {
+        for (j, &m) in marker.iter().enumerate() {
+            let b = bytes[i + j];
+            if b != m && b.to_ascii_uppercase() != m {
+                i += 1;
+                continue 'outer;
+            }
+        }
+        // 找到 marker，提取后续 4 个字符
+        let start = i + marker.len();
+        if start + 4 > bytes.len() {
+            return None;
+        }
+        return Some(String::from_utf8_lossy(&bytes[start..start + 4]).to_uppercase());
+    }
+    None
 }

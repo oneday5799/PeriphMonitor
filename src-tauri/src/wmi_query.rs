@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 use regex::Regex;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use wmi::WMIConnection;
 
 use crate::device::{Device, DevType};
@@ -11,18 +11,18 @@ use crate::device_data;
 use crate::bluetooth::find_paired_bluetooth_devices;
 use crate::dedup::{core_name, try_insert};
 
-static CACHED_REGEX: OnceLock<Mutex<Option<(String, Regex)>>> = OnceLock::new();
+static CACHED_REGEX: OnceLock<Mutex<Option<(String, Arc<Regex>)>>> = OnceLock::new();
 
-fn get_cached_regex(pattern: &str) -> Option<Regex> {
+fn get_cached_regex(pattern: &str) -> Option<Arc<Regex>> {
     let cache = CACHED_REGEX.get_or_init(|| Mutex::new(None));
     let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((ref cached_pat, ref re)) = *guard {
         if cached_pat == pattern {
-            return Some(re.clone());
+            return Some(Arc::clone(re));
         }
     }
-    let re = Regex::new(&format!("(?i)({})", pattern)).ok()?;
-    *guard = Some((pattern.to_string(), re.clone()));
+    let re = Arc::new(Regex::new(&format!("(?i)({})", pattern)).ok()?);
+    *guard = Some((pattern.to_string(), Arc::clone(&re)));
     Some(re)
 }
 
@@ -137,13 +137,13 @@ fn query_pnp_devices(
         let s = if connected { "已连接" } else { "已配对" };
         if n.is_empty() { continue; }
 
-        if pnp.eq_ignore_ascii_case("Bluetooth") && is_bt_service(&devid) {
+        if pnp.eq_ignore_ascii_case("Bluetooth") && is_bt_service(&u) {
             continue;
         }
-        if pnp.eq_ignore_ascii_case("HIDClass") && is_generic_hid(&devid) {
+        if pnp.eq_ignore_ascii_case("HIDClass") && is_generic_hid(&u) {
             continue;
         }
-        if is_system_device(&devid) {
+        if is_system_device(&u) {
             continue;
         }
 

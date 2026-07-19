@@ -35,23 +35,22 @@ pub fn refresh_devices_cache() -> bool {
 
 /// 根据缓存的设备信息构建 tooltip 文本
 pub fn build_tooltip_text() -> String {
-    let (tray_devices, device_names) = config::with_config(|c| {
-        (c.tray_devices.clone(), c.device_names.clone())
-    });
     let cache = get_devices_cache();
     let devices = cache.lock().unwrap_or_else(|e| e.into_inner());
 
     let mut lines = Vec::new();
-    for tray_name in &tray_devices {
-        if let Some(dev) = devices.iter().find(|d| &d.name == tray_name) {
-            let display_name = device_names.get(&dev.name).unwrap_or(&dev.name);
-            let dot = if dev.status == "已连接" { "🟢" } else { "⚪" };
-            match dev.battery {
-                Some(battery) => lines.push(format!("{} {} - {}%", dot, display_name, battery)),
-                None => lines.push(format!("{} {}", dot, display_name)),
+    config::with_config(|c| {
+        for tray_name in &c.tray_devices {
+            if let Some(dev) = devices.iter().find(|d| &d.name == tray_name) {
+                let display_name = c.device_names.get(&dev.name).unwrap_or(&dev.name);
+                let dot = if dev.status == "已连接" { "🟢" } else { "⚪" };
+                match dev.battery {
+                    Some(battery) => lines.push(format!("{} {} - {}%", dot, display_name, battery)),
+                    None => lines.push(format!("{} {}", dot, display_name)),
+                }
             }
         }
-    }
+    });
 
     if lines.is_empty() {
         "外设监控".to_string()
@@ -303,19 +302,20 @@ fn build_audio_devices_menu(app: &tauri::AppHandle) -> Result<Submenu<tauri::Wry
         let empty = MenuItem::with_id(app, "audio_dev_empty", "无音频设备", false, None::<&str>)?;
         submenu.append(&empty)?;
     } else {
-        let (device_names, hidden_audio) = config::with_config(|c| {
-            (c.device_names.clone(), c.hidden_audio_devices.clone())
-        });
-        for device in &devices {
-            if hidden_audio.contains(&device.name) {
-                continue;
+        config::with_config(|c| {
+            for device in &devices {
+                if c.hidden_audio_devices.contains(&device.name) {
+                    continue;
+                }
+                let check = if device.is_default { " ✓" } else { "" };
+                let display = c.device_names.get(&device.name).unwrap_or(&device.name);
+                let label = format!("{}{}", display, check);
+                let item = MenuItem::with_id(app, format!("audio_dev_{}", device.id), label, true, None::<&str>);
+                if let Ok(item) = item {
+                    let _ = submenu.append(&item);
+                }
             }
-            let check = if device.is_default { " ✓" } else { "" };
-            let display = device_names.get(&device.name).unwrap_or(&device.name);
-            let label = format!("{}{}", display, check);
-            let item = MenuItem::with_id(app, format!("audio_dev_{}", device.id), label, true, None::<&str>)?;
-            submenu.append(&item)?;
-        }
+        });
     }
     Ok(submenu)
 }

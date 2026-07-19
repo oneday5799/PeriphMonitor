@@ -2,6 +2,75 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogLevel {
+    Standard,
+    Verbose,
+}
+
+impl Serialize for LogLevel {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Standard => serializer.serialize_str("standard"),
+            Self::Verbose => serializer.serialize_str("verbose"),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LogLevel {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+            "standard" => Ok(Self::Standard),
+            "verbose" => Ok(Self::Verbose),
+            _ => Err(serde::de::Error::custom(format!("unknown log_level: {}", s))),
+        }
+    }
+}
+
+impl Default for LogLevel {
+    fn default() -> Self { Self::Standard }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogRetention {
+    Once,
+    OneDay,
+    ThreeDays,
+    OneWeek,
+    OneMonth,
+}
+
+impl Serialize for LogRetention {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Once => serializer.serialize_str("once"),
+            Self::OneDay => serializer.serialize_str("one_day"),
+            Self::ThreeDays => serializer.serialize_str("three_days"),
+            Self::OneWeek => serializer.serialize_str("one_week"),
+            Self::OneMonth => serializer.serialize_str("one_month"),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LogRetention {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+            "once" => Ok(Self::Once),
+            "one_day" | "oneday" => Ok(Self::OneDay),
+            "three_days" | "threedays" => Ok(Self::ThreeDays),
+            "one_week" | "oneweek" => Ok(Self::OneWeek),
+            "one_month" | "onemonth" => Ok(Self::OneMonth),
+            _ => Err(serde::de::Error::custom(format!("unknown log_retention: {}", s))),
+        }
+    }
+}
+
+impl Default for LogRetention {
+    fn default() -> Self { Self::OneDay }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub auto_start: bool,
@@ -18,21 +87,17 @@ pub struct Config {
     pub tray_devices: Vec<String>,
     #[serde(default)]
     pub hidden_audio_devices: Vec<String>,
-    #[serde(default = "default_false")]
+    #[serde(default)]
     pub log_enabled: bool,
-    #[serde(default = "default_log_level")]
-    pub log_level: String,
-    #[serde(default = "default_log_retention")]
-    pub log_retention: String,
-    #[serde(default = "default_false")]
+    #[serde(default)]
+    pub log_level: LogLevel,
+    #[serde(default)]
+    pub log_retention: LogRetention,
+    #[serde(default)]
     pub shutdown_volume_enabled: bool,
     #[serde(default)]
     pub shutdown_volume_devices: std::collections::HashMap<String, f32>,
 }
-
-fn default_false() -> bool { false }
-fn default_log_level() -> String { "standard".to_string() }
-fn default_log_retention() -> String { "one_day".to_string() }
 
 impl Default for Config {
     fn default() -> Self {
@@ -50,8 +115,8 @@ impl Default for Config {
             tray_devices: vec![],
             hidden_audio_devices: vec![],
             log_enabled: false,
-            log_level: "standard".to_string(),
-            log_retention: "one_day".to_string(),
+            log_level: LogLevel::default(),
+            log_retention: LogRetention::default(),
             shutdown_volume_enabled: false,
             shutdown_volume_devices: std::collections::HashMap::new(),
         }
@@ -84,8 +149,8 @@ pub fn log_once() -> bool {
 
 fn sync_log_cache(config: &Config) {
     LOG_ENABLED.store(config.log_enabled, Ordering::Relaxed);
-    LOG_LEVEL_STANDARD.store(config.log_level == "standard", Ordering::Relaxed);
-    LOG_ONCE.store(config.log_retention == "once", Ordering::Relaxed);
+    LOG_LEVEL_STANDARD.store(config.log_level == LogLevel::Standard, Ordering::Relaxed);
+    LOG_ONCE.store(config.log_retention == LogRetention::Once, Ordering::Relaxed);
 }
 
 fn config_path() -> std::path::PathBuf {

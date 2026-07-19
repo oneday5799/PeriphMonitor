@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use tauri::Emitter;
 use windows::core::*;
 use windows::Win32::Foundation::*;
@@ -17,7 +18,7 @@ const WM_SYNC_CALLBACKS: u32 = 0x0400;
 #[implement(IAudioEndpointVolumeCallback)]
 struct VolumeCallback {
     app_handle: tauri::AppHandle,
-    device_id: String,
+    device_id: Arc<str>,
 }
 
 impl IAudioEndpointVolumeCallback_Impl for VolumeCallback_Impl {
@@ -27,7 +28,7 @@ impl IAudioEndpointVolumeCallback_Impl for VolumeCallback_Impl {
                 let _ = self.app_handle.emit(
                     "volume-changed",
                     vec![VolumeChangeEvent {
-                        device_id: self.device_id.clone(),
+                        device_id: self.device_id.to_string(),
                         volume: data.fMasterVolume,
                         is_muted: data.bMuted.as_bool(),
                     }],
@@ -163,9 +164,10 @@ impl AudioMonitor {
             Err(_) => return,
         };
 
+        let device_id: Arc<str> = Arc::from(id);
         let callback: IAudioEndpointVolumeCallback = VolumeCallback {
             app_handle: self.app_handle.clone(),
-            device_id: id.to_string(),
+            device_id: device_id.clone(),
         }
         .into();
 

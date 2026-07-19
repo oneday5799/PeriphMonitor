@@ -1,17 +1,20 @@
 use image::RgbaImage;
 use image::codecs::png::PngEncoder;
 use image::ImageEncoder;
-use std::collections::HashMap;
+use lru::LruCache;
 use std::io::Cursor;
+use std::num::NonZeroUsize;
 use std::sync::{Mutex, OnceLock};
 
-static ICON_CACHE: OnceLock<Mutex<HashMap<u32, String>>> = OnceLock::new();
+static ICON_CACHE: OnceLock<Mutex<LruCache<u32, String>>> = OnceLock::new();
 
 /// 从进程PID获取应用图标（返回base64编码的PNG）
 pub fn get_app_icon_by_pid(pid: u32) -> Option<String> {
-    let cache = ICON_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = ICON_CACHE.get_or_init(|| {
+        Mutex::new(LruCache::new(NonZeroUsize::new(256).unwrap()))
+    });
     {
-        let guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(icon) = guard.get(&pid) {
             return Some(icon.clone());
         }
@@ -39,7 +42,7 @@ pub fn get_app_icon_by_pid(pid: u32) -> Option<String> {
     })();
     icon.as_ref()?;
     let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
-    guard.entry(pid).or_insert_with(|| icon.clone().unwrap());
+    guard.put(pid, icon.clone().unwrap());
     icon
 }
 
@@ -164,16 +167,12 @@ unsafe fn get_icon_bitmap(hicon: windows::Win32::UI::WindowsAndMessaging::HICON)
         return None;
     }
 
-    // 转换BGRA到RGBA
-    let mut rgba_pixels = Vec::with_capacity(pixels.len());
-    for chunk in pixels.chunks_exact(4) {
-        rgba_pixels.push(chunk[2]); // R
-        rgba_pixels.push(chunk[1]); // G
-        rgba_pixels.push(chunk[0]); // B
-        rgba_pixels.push(chunk[3]); // A
+    // 原地转换BGRA到RGBA（避免第二次堆分配）
+    for chunk in pixels.chunks_exact_mut(4) {
+        chunk.swap(0, 2);
     }
 
-    RgbaImage::from_raw(width as u32, height as u32, rgba_pixels)
+    RgbaImage::from_raw(width as u32, height as u32, pixels)
 }
 
 /// 将RGBA图像转换为base64编码的PNG

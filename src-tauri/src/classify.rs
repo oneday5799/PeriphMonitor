@@ -96,26 +96,23 @@ fn is_usb(lower_name: &str, caption: &str) -> bool {
     .any(|k| combined.contains(k))
 }
 
-pub fn is_bt_service(pnp_id: &str) -> bool {
-    let upper = pnp_id.to_uppercase();
-    upper.starts_with("BTHLEDEVICE\\{") || upper.starts_with("BTHENUM\\{")
+pub fn is_bt_service(pnp_id_upper: &str) -> bool {
+    pnp_id_upper.starts_with("BTHLEDEVICE\\{") || pnp_id_upper.starts_with("BTHENUM\\{")
 }
 
-pub fn is_generic_hid(pnp_id: &str) -> bool {
-    let upper = pnp_id.to_uppercase();
-    if upper.contains("&COL") {
+pub fn is_generic_hid(pnp_id_upper: &str) -> bool {
+    if pnp_id_upper.contains("&COL") {
         return true;
     }
-    if upper.starts_with("USB\\") {
-        return !is_wireless_24g_by_vid_pid(&upper);
+    if pnp_id_upper.starts_with("USB\\") {
+        return !is_wireless_24g_by_vid_pid(pnp_id_upper);
     }
-    if upper.starts_with("BTHLEDEVICE\\{") || upper.starts_with("BTHENUM\\{") {
+    if pnp_id_upper.starts_with("BTHLEDEVICE\\{") || pnp_id_upper.starts_with("BTHENUM\\{") {
         return true;
     }
     false
 }
 
-pub fn is_system_device(pnp_id: &str) -> bool {
-    let upper = pnp_id.to_uppercase();
-    upper.starts_with("BTH\\MS_")
+pub fn is_system_device(pnp_id_upper: &str) -> bool {
+    pnp_id_upper.starts_with("BTH\\MS_")
 }
