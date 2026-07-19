@@ -62,7 +62,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 
 ### 设置页
 
-- **通用设置**：开机自启动、运行日志（开关、级别、保留时长、查看目录）
+- **通用设置**：开机自启动、运行日志（开关、级别、保留时长、查看目录）、关机/重启时自动调整音量
 - **设备信息设置**：设备过滤（正则表达式编辑、设备去重）、显示无名称蓝牙设备、使用系统蓝牙连接、2.4G 设备列表、设备分组管理
 - **音量控制设置**：音量控制页设备列表独立显隐控制
 
@@ -100,6 +100,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 | 2.4G 识别 | USB VID/PID 匹配（wireless_24g_devices.json） |
 | BLE 电量 | GATT Battery Service (0x180F/0x2A19) |
 | BTC 电量 | windows_pnp (DEVPKEY_BLUETOOTH_BATTERY) |
+| 缓存 | LRU（图标缓存）、Arc（Regex/device_id 共享） |
 | 异步 | tokio |
 | 配置 | TOML |
 
@@ -139,16 +140,16 @@ PeriphMonitor/
 │   │   ├── settings.html             # 设置页
 │   │   ├── about.html                # 关于页
 │   │   ├── scripts/
-│   │   │   ├── common.js             # 共享常量与工具函数（CATEGORIES、getInvoke、右键菜单、重命名对话框）
-│   │   │   ├── dialog.js             # 通用对话框组件（createDialog、closeDialog）
+│   │   │   ├── common.js             # 共享常量与工具函数（CATEGORIES、getInvoke、右键菜单、重命名对话框、通用对话框）
 │   │   │   ├── popup.js              # 主窗口逻辑（设备列表、蓝牙操作、右键菜单）
 │   │   │   ├── audio.js              # 音量控制逻辑（设备/会话音量、滑块、右键菜单）
 │   │   │   └── settings.js           # 设置页逻辑
 │   │   └── styles/
-│   │       ├── base.css              # 基础样式（重置、滚动条、字体）
+│   │       ├── base.css              # 基础样式（重置、滚动条、字体、音量滑块）
 │   │       ├── popup.css             # 主窗口样式（设备卡片、菜单、对话框）
-│   │       ├── audio.css             # 音量控制样式（滑块、设备/会话卡片）
-│   │       └── settings.css          # 设置页样式
+│   │       ├── audio.css             # 音量控制样式（设备/会话卡片）
+│   │       ├── settings.css          # 设置页样式
+│   │       └── about.css             # 关于页样式
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── .github/
@@ -160,10 +161,11 @@ PeriphMonitor/
 
 ### 代码组织说明
 
-- **后端**：`dedup.rs` 封装设备去重逻辑，`wmi_query.rs` 负责 WMI 查询编排与过滤，`process.rs` 统一管理日志和 ShellExecuteW 调用，`audio.rs` 提取 `with_enumerator()` 消除 COM 初始化样板代码，`popup.rs` 提供 `compute_position()` 计算弹窗位置
-- **前端**：按功能拆分 — `popup.js` 负责设备列表，`audio.js` 负责音量控制；CSS 同理拆分为 `popup.css` 和 `audio.css`；设置页按三个标签页组织（通用/设备信息/音量控制）
-- **配置**：TOML 格式，包含 hidden_devices、hidden_audio_devices、device_names、device_groups、log_enabled、log_level、log_retention 等字段
+- **后端**：`dedup.rs` 封装设备去重逻辑（核心名称提取、去重插入），`wmi_query.rs` 负责 WMI 查询编排与过滤，`process.rs` 统一管理日志和 ShellExecuteW 调用，`audio.rs` 提取 `with_enumerator()` 消除 COM 初始化样板代码，`popup.rs` 提供 `compute_position()` 计算弹窗位置
+- **前端**：按功能拆分 — `popup.js` 负责设备列表，`audio.js` 负责音量控制；共享工具函数、右键菜单、对话框统一在 `common.js`；CSS 拆分为 `base.css`（全局重置、音量滑块）、`popup.css`、`audio.css`、`settings.css`、`about.css`；设置页按三个标签页组织（通用/设备信息/音量控制）
+- **配置**：TOML 格式，`log_level`/`log_retention` 使用枚举类型（支持大小写不敏感反序列化），包含 hidden_devices、hidden_audio_devices、device_names、device_groups、shutdown_volume_enabled、shutdown_volume_devices 等字段
 - **日志**：标准级别记录关键运行事件，详细级别记录诊断信息；支持按保留时长自动清理
+- **内存优化**：图标缓存使用 LRU（容量 256）防止内存泄漏，音频回调使用 `Arc<str>` 共享 device_id 减少字符串复制，设备分类函数避免重复计算 uppercase，配置枚举替代 String 减少堆分配
 
 ## 2.4G 设备支持
 
