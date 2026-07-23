@@ -142,14 +142,32 @@ fn winhttp_get(host: &str, path: &str) -> Result<String, String> {
 }
 
 /// 比较版本号：返回 latest > current
+/// 遵循 semver 预发布规则：数字部分相同且 latest 有预发布后缀时，按后缀字典序比较
 fn compare_versions(current: &str, latest: &str) -> bool {
-    fn parse_parts(v: &str) -> Vec<u32> {
-        v.trim_start_matches('v')
-            .split('.')
-            .filter_map(|s| s.parse::<u32>().ok())
-            .collect()
+    fn split_version(v: &str) -> (Vec<u32>, &str) {
+        let v = v.trim_start_matches('v');
+        let (base, pre) = match v.split_once('-') {
+            Some((b, p)) => (b, p),
+            None => (v, ""),
+        };
+        let nums: Vec<u32> = base.split('.').filter_map(|s| s.parse().ok()).collect();
+        (nums, pre)
     }
-    parse_parts(current) < parse_parts(latest)
+
+    let (cur_nums, cur_pre) = split_version(current);
+    let (lat_nums, lat_pre) = split_version(latest);
+
+    // 先比较数字部分
+    if cur_nums != lat_nums {
+        return cur_nums < lat_nums;
+    }
+
+    // 数字部分相同：有预发布后缀的版本 < 无后缀的版本（如 1.1.5-beta < 1.1.5）
+    match (cur_pre.is_empty(), lat_pre.is_empty()) {
+        (true, false) => false, // current 是正式版，latest 是预发布 → latest 不更新
+        (false, true) => true,  // current 是预发布，latest 是正式版 → latest 更新
+        _ => cur_pre < lat_pre, // 都是预发布或都是正式版，按后缀/相等比较
+    }
 }
 
 /// 检测 GitHub 是否有新版本
