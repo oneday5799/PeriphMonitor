@@ -62,9 +62,17 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 
 ### 设置页
 
-- **通用设置**：开机自启动、运行日志（开关、级别、保留时长、查看目录）、关机/重启时自动调整音量
+- **通用设置**：开机自启动、运行日志（开关、级别、保留时长、查看目录）、关机/重启时自动调整音量、更新检测（启用/测试版/手动检测）
 - **设备信息设置**：设备过滤（正则表达式编辑、设备去重）、显示无名称蓝牙设备、使用系统蓝牙连接、2.4G 设备列表、设备分组管理
 - **音量控制设置**：音量控制页设备列表独立显隐控制
+
+### 更新检测
+
+- 启动时自动检测 GitHub 新版本（延迟 3 秒，非 autostart 模式）
+- 有新版本时 toast 通知，点击跳转下载页
+- 支持检测测试版（Pre-release）开关
+- 手动检测按钮，实时反馈结果
+- 使用 semver 语义化版本比较
 
 ### 其他
 
@@ -102,6 +110,8 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 | BTC 电量 | windows_pnp (DEVPKEY_BLUETOOTH_BATTERY) |
 | 缓存 | LRU（图标缓存）、Arc（Regex/device_id 共享） |
 | 异步 | tokio |
+| 网络 | reqwest (rustls-tls) |
+| 版本比较 | semver |
 | 配置 | TOML |
 
 ## 项目结构
@@ -133,6 +143,7 @@ PeriphMonitor/
 │   │   ├── commands.rs               # Tauri 命令处理器
 │   │   ├── popup.rs                  # 弹出窗口生命周期（toggle/open/close）与动画
 │   │   ├── tray.rs                   # 系统托盘菜单与事件处理
+│   │   ├── update.rs                 # GitHub 更新检测（reqwest + semver）
 │   │   ├── windows.rs                # 窗口创建与 DWM 圆角
 │   │   └── process.rs               # 进程工具（日志、ShellExecuteW、PowerShell 调用）
 │   ├── dist/
@@ -161,7 +172,7 @@ PeriphMonitor/
 
 ### 代码组织说明
 
-- **后端**：`dedup.rs` 封装设备去重逻辑（核心名称提取、去重插入），`wmi_query.rs` 负责 WMI 查询编排与过滤，`process.rs` 统一管理日志和 ShellExecuteW 调用，`audio.rs` 提取 `with_enumerator()` 消除 COM 初始化样板代码，`popup.rs` 提供 `compute_position()` 计算弹窗位置
+- **后端**：`dedup.rs` 封装设备去重逻辑（核心名称提取、去重插入），`wmi_query.rs` 负责 WMI 查询编排与过滤，`process.rs` 统一管理日志和 ShellExecuteW 调用，`audio.rs` 提取 `with_enumerator()` 消除 COM 初始化样板代码，`popup.rs` 提供 `compute_position()` 计算弹窗位置，`update.rs` 实现 GitHub API 更新检测
 - **前端**：按功能拆分 — `popup.js` 负责设备列表，`audio.js` 负责音量控制；共享工具函数、右键菜单、对话框统一在 `common.js`；CSS 拆分为 `base.css`（全局重置、音量滑块）、`popup.css`、`audio.css`、`settings.css`、`about.css`；设置页按三个标签页组织（通用/设备信息/音量控制）
 - **配置**：TOML 格式，`log_level`/`log_retention` 使用枚举类型（支持大小写不敏感反序列化），包含 hidden_devices、hidden_audio_devices、device_names、device_groups、shutdown_volume_enabled、shutdown_volume_devices 等字段
 - **日志**：标准级别记录关键运行事件，详细级别记录诊断信息；支持按保留时长自动清理
