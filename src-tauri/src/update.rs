@@ -109,7 +109,7 @@ fn winhttp_get(host: &str, path: &str) -> Result<String, String> {
                 WinHttpCloseHandle(request);
                 WinHttpCloseHandle(connect);
                 WinHttpCloseHandle(session);
-                return Err("GitHub API 请求过于频繁，请稍后再试".to_string());
+                return Err("HTTP 403，请稍后再试".to_string());
             }
             code => {
                 WinHttpCloseHandle(request);
