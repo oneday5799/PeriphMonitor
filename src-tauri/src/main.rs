@@ -15,12 +15,14 @@ mod popup;
 mod process;
 mod state;
 mod tray;
+mod update;
 mod windows;
 mod wmi_query;
 
 use std::panic;
 
 use tauri::Manager;
+use tauri::Emitter;
 
 /// 安装 panic hook：捕获 panic 后弹 MessageBox 再退出（避免 release 模式静默闪退）
 fn install_panic_hook() {
@@ -126,6 +128,7 @@ fn main() {
             commands::toggle_session_mute,
             commands::set_default_device,
             commands::open_log_dir,
+            commands::check_for_update,
         ])
         .setup(move |app| {
             if let Err(e) = tray::setup_tray(app) {
@@ -136,6 +139,26 @@ fn main() {
             if !is_autostart {
                 popup::open_popup(app.handle(), "devices");
             }
+
+            // 启动时检测更新（仅非 autostart 模式）
+            if !is_autostart && config::with_config(|c| c.check_updates) {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    let include = config::with_config(|c| c.include_prerelease);
+                    let current_version = app_handle.package_info().version.to_string();
+                    match crate::update::check_for_update(&current_version, include).await {
+                        Ok(info) if info.has_update => {
+                            let _ = app_handle.emit("update-available", info);
+                        }
+                        Err(e) => {
+                            process::append_log(&format!("[update] startup check failed: {}", e));
+                        }
+                        _ => {}
+                    }
+                });
+            }
+
             process::append_log("[main] startup complete");
             Ok(())
         })

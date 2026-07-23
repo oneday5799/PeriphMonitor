@@ -24,25 +24,6 @@ function throttle(fn, delay) {
   };
 }
 
-function showToast(msg, onClick) {
-  let el = document.querySelector(".toast");
-  if (!el) {
-    el = document.createElement("div");
-    el.className = "toast";
-    document.body.appendChild(el);
-  }
-  el.innerHTML = msg;
-  el.classList.add("show");
-  el.style.cursor = onClick ? "pointer" : "default";
-  el.onclick = onClick || null;
-  clearTimeout(el._timer);
-  el._timer = setTimeout(() => {
-    el.classList.remove("show");
-    el.onclick = null;
-    el.style.cursor = "default";
-  }, 3000);
-}
-
 async function loadDevices() {
   const list = document.getElementById("device-list");
   list.innerHTML = '<div class="loading">加载中...</div>';

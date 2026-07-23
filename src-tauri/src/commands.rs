@@ -232,4 +232,13 @@ pub fn open_log_dir() -> Result<(), String> {
     process::open_with_system(&dir.to_string_lossy())
 }
 
+#[tauri::command(async)]
+pub async fn check_for_update(
+    app: tauri::AppHandle,
+    include_prerelease: bool,
+) -> Result<crate::update::UpdateInfo, String> {
+    let current_version = app.package_info().version.to_string();
+    crate::update::check_for_update(&current_version, include_prerelease).await
+}
+
 

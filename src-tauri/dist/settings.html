@@ -31,6 +31,31 @@
       <div class="separator"></div>
 
       <div class="setting-row">
+        <span class="setting-label">启动时检测更新</span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-check-updates">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">获取测试版更新
+          <span class="tooltip-trigger">?
+            <span class="tooltip-content">开启后不仅检测正式版，也检测测试版（beta/rc）更新。</span>
+          </span>
+        </span>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-include-prerelease">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">手动检测更新</span>
+        <button class="add-device-btn" id="btn-check-update">检测更新</button>
+      </div>
+
+      <div class="separator"></div>
+
+      <div class="setting-row">
         <span class="setting-label">运行日志</span>
         <label class="toggle">
           <input type="checkbox" id="toggle-log">

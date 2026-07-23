@@ -97,7 +97,13 @@ pub struct Config {
     pub shutdown_volume_enabled: bool,
     #[serde(default)]
     pub shutdown_volume_devices: std::collections::HashMap<String, f32>,
+    #[serde(default = "default_true")]
+    pub check_updates: bool,
+    #[serde(default)]
+    pub include_prerelease: bool,
 }
+
+fn default_true() -> bool { true }
 
 impl Default for Config {
     fn default() -> Self {
@@ -119,6 +125,8 @@ impl Default for Config {
             log_retention: LogRetention::default(),
             shutdown_volume_enabled: false,
             shutdown_volume_devices: std::collections::HashMap::new(),
+            check_updates: true,
+            include_prerelease: false,
         }
     }
 }

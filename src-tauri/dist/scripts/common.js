@@ -168,3 +168,33 @@ window.closeDialog = function (overlay) {
     overlay.remove();
   }
 };
+
+// ── Toast 通知 ──────────────────────────────────────────
+
+window.showToast = function (msg, onClick) {
+  let el = document.querySelector(".toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "toast";
+    document.body.appendChild(el);
+  }
+  el.innerHTML = msg;
+  el.classList.add("show");
+  el.style.cursor = onClick ? "pointer" : "default";
+  el.onclick = onClick || null;
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => {
+    el.classList.remove("show");
+    el.onclick = null;
+    el.style.cursor = "default";
+  }, 5000);
+};
+
+// ── 启动时更新检测（全局监听） ─────────────────────────
+window.__TAURI__.event.listen("update-available", (event) => {
+  const info = event.payload;
+  window.showToast(
+    `发现新版本 ${info.latest_version}（当前 ${info.current_version}）<br>点击前往下载`,
+    () => window.__TAURI__.core.invoke("open_url", { url: info.release_url })
+  );
+});

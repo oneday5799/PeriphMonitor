@@ -378,26 +378,3 @@ body {
   border-color: #0078d7;
   color: #0078d7;
 }
-
-.toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #333;
-  color: #fff;
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: 13px;
-  z-index: 3000;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-  display: none;
-}
-
-.toast.show {
-  pointer-events: auto;
-  opacity: 1;
-  display: block;
-}
