@@ -142,7 +142,7 @@ PeriphMonitor/
 │   │   ├── commands.rs               # Tauri 命令处理器
 │   │   ├── popup.rs                  # 弹出窗口生命周期（toggle/open/close）与动画
 │   │   ├── tray.rs                   # 系统托盘菜单与事件处理
-│   │   ├── update.rs                 # GitHub 更新检测（reqwest + semver）
+│   │   ├── update.rs                 # GitHub 更新检测（WinHTTP + semver）
 │   │   ├── windows.rs                # 窗口创建与 DWM 圆角
 │   │   └── process.rs               # 进程工具（日志、ShellExecuteW、PowerShell 调用）
 │   ├── dist/

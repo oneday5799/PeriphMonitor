@@ -19,16 +19,12 @@ struct GitHubRelease {
     html_url: String,
 }
 
-fn to_wide(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain(std::iter::once(0)).collect()
-}
-
 /// WinHTTP GET request, returns response body as String
 fn winhttp_get(host: &str, path: &str) -> Result<String, String> {
-    let user_agent = to_wide("PeriphMonitor");
-    let host_wide = to_wide(host);
-    let path_wide = to_wide(path);
-    let verb = to_wide("GET");
+    let user_agent = crate::process::to_wide("PeriphMonitor");
+    let host_wide = crate::process::to_wide(host);
+    let path_wide = crate::process::to_wide(path);
+    let verb = crate::process::to_wide("GET");
 
     unsafe {
         let session = WinHttpOpen(
