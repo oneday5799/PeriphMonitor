@@ -238,7 +238,12 @@ pub async fn check_for_update(
     include_prerelease: bool,
 ) -> Result<crate::update::UpdateInfo, String> {
     let current_version = app.package_info().version.to_string();
-    crate::update::check_for_update(&current_version, include_prerelease).await
+    // WinHTTP is blocking but fast; spawn_blocking to avoid blocking Tauri's async runtime
+    tokio::task::spawn_blocking(move || {
+        crate::update::check_for_update(&current_version, include_prerelease)
+    })
+    .await
+    .map_err(|e| format!("task error: {}", e))?
 }
 
 

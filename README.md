@@ -110,8 +110,7 @@ PeriphMonitor 是一款运行在 Windows 系统托盘中的轻量级外设监控
 | BTC 电量 | windows_pnp (DEVPKEY_BLUETOOTH_BATTERY) |
 | 缓存 | LRU（图标缓存）、Arc（Regex/device_id 共享） |
 | 异步 | tokio |
-| 网络 | reqwest (rustls-tls) |
-| 版本比较 | semver |
+| 网络 | WinHTTP (windows-sys) |
 | 配置 | TOML |
 
 ## 项目结构

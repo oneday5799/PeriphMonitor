@@ -147,12 +147,19 @@ fn main() {
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                     let include = config::with_config(|c| c.include_prerelease);
                     let current_version = app_handle.package_info().version.to_string();
-                    match crate::update::check_for_update(&current_version, include).await {
-                        Ok(info) if info.has_update => {
+                    let result = tokio::task::spawn_blocking(move || {
+                        crate::update::check_for_update(&current_version, include)
+                    })
+                    .await;
+                    match result {
+                        Ok(Ok(info)) if info.has_update => {
                             let _ = app_handle.emit("update-available", info);
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
                             process::append_log(&format!("[update] startup check failed: {}", e));
+                        }
+                        Err(e) => {
+                            process::append_log(&format!("[update] task failed: {}", e));
                         }
                         _ => {}
                     }

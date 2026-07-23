@@ -150,12 +150,12 @@ async function init() {
       } catch (e) {
         clearTimeout(timeoutId);
         const err = String(e);
-        if (err.includes("timeout")) {
+        if (err.includes("超时") || err.includes("timeout")) {
           showToast(
             "检测超时，请检查网络后重试<br>点击前往 Release 页面",
             () => invoke("open_url", { url: "https://github.com/oneday5799/PeriphMonitor/releases" })
           );
-        } else if (err.includes("rate_limited")) {
+        } else if (err.includes("频繁") || err.includes("rate_limited")) {
           showToast("GitHub API 请求过于频繁，请稍后再试");
         } else {
           showToast("检测失败：" + err);
